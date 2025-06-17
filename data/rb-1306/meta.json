@@ -1,0 +1,25 @@
+{
+    "title": "rb-1306",
+    "backend": "qibolab",
+    "platform": "sinq-20",
+    "start_time": "2025-06-12 17:09:14.220241+00:00",
+    "end_time": "2025-06-12 22:12:39.336296+00:00",
+    "stats": {
+        "rb-0": {
+            "acquisition": 18204.714313025586,
+            "fit": 0.28464135620743036
+        }
+    },
+    "author": null,
+    "tag": null,
+    "targets": null,
+    "versions": {
+        "qibo": "0.2.18",
+        "numpy": "2.3.0",
+        "qibolab": "0.2.7",
+        "qibocal": "0.2.2"
+    },
+    "date": "2025-06-12",
+    "start-time": "17:09:14",
+    "end-time": "22:12:39"
+}

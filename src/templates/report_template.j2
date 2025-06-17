@@ -1,0 +1,97 @@
+% Jinja2 LaTeX template for Quantum Benchmark Report
+
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\geometry{margin=1in}
+
+\title{Quantum Benchmark Report}
+\author{Quantum Research Team}
+\date{ {{ date }} }
+
+\begin{document}
+
+\maketitle
+
+% First page info
+\noindent
+\textbf{File name:} {{ chip_name }} \\ 
+\textbf{Qubits:} {{ qubits }} \\ 
+\textbf{Date:} {{ date }} \\ 
+\textbf{Time:} {{ time }} \\ 
+
+\vspace{1em}
+
+% Report of changes
+\section*{Report of Changes and Reason for New Benchmarking Suite}
+{{ report_of_changes }}
+
+\vspace{2em}
+
+% Two columns for New version and Control version
+\begin{minipage}{0.48\textwidth}
+\textbf{New version} \\[0.5em]
+\textbf{Python packages:}
+\begin{longtable}{@{}ll@{}}
+    \toprule
+    Library & Version \\ \midrule
+    \endfirsthead
+    {% for row in new_version.packages %}
+    {{ row.library }} & {{ row.version }} \\
+    {% endfor %}
+    \bottomrule
+\end{longtable}
+
+\textbf{Runcard used:} {{ new_version.runcard | replace('_', '\\_') }} \\
+\textbf{Link to last version:} \href{ {{ new_version.runcard_link | replace('_', '\\_') }} }{ {{ new_version.runcard_link | replace('_', '\\_') }} }
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\textwidth}
+\textbf{Control version} \\[0.5em]
+\textbf{Python packages:}
+\begin{longtable}{@{}ll@{}}
+    \toprule
+    Library & Version \\ \midrule
+    \endfirsthead
+    {% for row in control_version.packages %}
+    {{ row.library }} & {{ row.version }} \\
+    {% endfor %}
+    \bottomrule
+\end{longtable}
+
+\textbf{Runcard used:} {{ control_version.runcard | replace('_', '\\_') }} \\
+\textbf{Link to last version:} \href{ {{ control_version.runcard_link | replace('_', '\\_') }} }{ {{ control_version.runcard_link | replace('_', '\\_') }} }
+\end{minipage}
+
+\vspace{2em}
+
+% Routine results table
+\section*{Routine Results}
+\begin{longtable}{@{}lllll@{}}
+    \toprule
+    Routine & Avg. Result $\pm$ Error & Best Qubit & Worst Qubit \\ \midrule
+    \endfirsthead
+    {% for row in routine_results %}
+    {{ row.routine }} & {{ row.avg_result_error }} & {{ row.best_qubit }} & {{ row.worst_qubit }} \\
+    {% endfor %}
+    \bottomrule
+\end{longtable}
+
+\vspace{2em}
+
+% T1/T2 values table
+\section*{T1/T2 Values During Benchmark Suite}
+\begin{longtable}{@{}llll@{}}
+    \toprule
+    Qubit & T1 (us) & T2 (us) & Outlier? \\ \midrule
+    \endfirsthead
+    {% for row in t1t2_values %}
+    {{ row.qubit }} & {{ row.t1 }} & {{ row.t2 }} & {{ row.outlier }} \\
+    {% endfor %}
+    \bottomrule
+\end{longtable}
+
+\end{document}
