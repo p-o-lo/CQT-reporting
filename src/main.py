@@ -5,6 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 import logging
 import os
 import json
+import numpy as np
 
 # Configure logging
 logging.basicConfig(
@@ -87,6 +88,26 @@ def context_fidelity(experiment_dir):
         }
         for i, (f, e) in enumerate(zip(fidelities_list, error_bars_list))
     ]
+    # mark the best fidelity by writing the element to \textcolor{green}{element}
+    max_fidelity = np.nanmax(
+        [f for f in fidelities_list if isinstance(f, (float, int))]
+    )
+    _ = [
+        {
+            "qn": item["qn"],
+            "fidelity": (
+                f"\\textcolor{{green}}{{{item['fidelity']}}}"
+                if (
+                    isinstance(item["fidelity"], (float, int))
+                    and np.isclose(item["fidelity"], max_fidelity, rtol=1e-5, atol=1e-8)
+                )
+                else item["fidelity"]
+            ),
+            "error_bars": item["error_bars"],
+        }
+        for item in _
+    ]
+
     # Debugging line to inspect the fidelity and error bars
     # Zip and return as list of dicts for template clarity
     return _

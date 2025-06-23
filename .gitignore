@@ -1,0 +1,4 @@
+build/*
+report.tex
+report.pdf
+.DS_Store
