@@ -1,6 +1,6 @@
 # Quantum Benchmark Reporter
 
-This project is designed to automate the generation of PDF reports based on benchmarking experiments conducted on quantum computers. The reports are generated using a LaTeX template that is populated with data from JSON files containing benchmark results.
+This project automates the generation of PDF reports for quantum benchmarking experiments. It uses a LaTeX template (with Jinja2) populated from JSON files containing experiment results and metadata.
 
 ## Project Structure
 
