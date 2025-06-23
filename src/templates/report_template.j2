@@ -1,97 +1,182 @@
-% Jinja2 LaTeX template for Quantum Benchmark Report
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% --------------------------------------------------------
+% Quantum Benchmark Report
+% Using Tau LaTeX Class
+% --------------------------------------------------------
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\documentclass{article}
-\usepackage{booktabs}
+\documentclass[9pt,a4paper]{src/templates/tau-class/tau}
+\usepackage[english]{babel}
+
+% Additional packages that might be needed and are not in tau.cls
 \usepackage{longtable}
-\usepackage{geometry}
-\usepackage{graphicx}
-\usepackage{hyperref}
-\geometry{margin=1in}
+\usepackage{multicol}
 
-\title{Quantum Benchmark Report}
-\author{Quantum Research Team}
-\date{ {{ date }} }
+%----------------------------------------------------------
+% TITLE
+%----------------------------------------------------------
+
+\journalname{Quantum Benchmark Report}
+\title{Benchmarking report of {{ platform }}}
+
+%----------------------------------------------------------
+% AUTHORS AND INFORMATION
+%----------------------------------------------------------
+
+\author{Team name or Tool name}
+
+%----------------------------------------------------------
+% LOGO CONFIGURATION
+%----------------------------------------------------------
+
+\logopath{src/templates/cqt.pdf}
+\logoheight{1.5cm}
+
+%----------------------------------------------------------
+% FOOTER INFORMATION
+%----------------------------------------------------------
+
+\institution{Centre for Quantum Technologies}
+\footinfo{Benchmark Report}
+\theday{ {{ date }} } 
+\leadauthor{Quantum hardware lab of CQT}
+\course{Quantum Hardware Team}
+
+%----------------------------------------------------------
+% ABSTRACT
+%----------------------------------------------------------
+
+%\begin{abstract}
+%This report presents the quantum benchmark results for {{ chip_name }} with {{ qubits }} qubits. 
+%The benchmark was conducted on {{ date }} at {{ time }}. The report includes comparison between 
+%the new version and control version, routine results, and T1/T2 measurements.
+%\end{abstract}
+
+\keywords{quantum computing, benchmarking, quantum hardware, performance analysis}
 
 \begin{document}
 
 \maketitle
-
-% First page info
-\noindent
-\textbf{File name:} {{ chip_name }} \\ 
-\textbf{Qubits:} {{ qubits }} \\ 
-\textbf{Date:} {{ date }} \\ 
-\textbf{Time:} {{ time }} \\ 
-
-\vspace{1em}
+\thispagestyle{firststyle}
 
 % Report of changes
-\section*{Report of Changes and Reason for New Benchmarking Suite}
+\section{Report of Changes}
+\taustart{T}his section details the reasons for the new benchmarking suite and summarizes the key changes. This section details the reasons for the new benchmarking suite and summarizes the key changes. This section details the reasons for the new benchmarking suite and summarizes the key changes. (from template)
+
 {{ report_of_changes }}
 
-\vspace{2em}
+\section{Version Comparison}
 
-% Two columns for New version and Control version
-\begin{minipage}{0.48\textwidth}
-\textbf{New version} \\[0.5em]
-\textbf{Python packages:}
-\begin{longtable}{@{}ll@{}}
-    \toprule
-    Library & Version \\ \midrule
-    \endfirsthead
-    {% for row in new_version.packages %}
-    {{ row.library }} & {{ row.version }} \\
-    {% endfor %}
-    \bottomrule
-\end{longtable}
+\begin{multicols}{2}
 
-\textbf{Runcard used:} {{ new_version.runcard | replace('_', '\\_') }} \\
-\textbf{Link to last version:} \href{ {{ new_version.runcard_link | replace('_', '\\_') }} }{ {{ new_version.runcard_link | replace('_', '\\_') }} }
+\subsection{New Version}
+\begin{tauenv}[frametitle=Python Packages]
+\begin{tabular}{@{}ll@{}}
+\toprule
+Library & Version \\ \midrule
+{% for key, value in new_version.versions.items() %}
+{{ key | replace('_', '\\_') }} & {{ value | replace('_', '\\_') }} \\
+{% endfor %}
+\bottomrule
+\end{tabular}
+\hspace{1cm}
+\begin{minipage}[t]{0.45\linewidth}
+\begin{itemize}
+
+\item \textbf{Runcard used:} {{ new_version.runcard | replace('_', '\\_') }}
+\item \textbf{Link:} \href{ {{ new_version.runcard_link }} }{ {{ new_version.runcard_link }} }
+\item ...
+\end{itemize}
 \end{minipage}
-\hfill
-\begin{minipage}{0.48\textwidth}
-\textbf{Control version} \\[0.5em]
-\textbf{Python packages:}
-\begin{longtable}{@{}ll@{}}
-    \toprule
-    Library & Version \\ \midrule
-    \endfirsthead
-    {% for row in control_version.packages %}
-    {{ row.library }} & {{ row.version }} \\
-    {% endfor %}
-    \bottomrule
-\end{longtable}
+\end{tauenv}
 
-\textbf{Runcard used:} {{ control_version.runcard | replace('_', '\\_') }} \\
-\textbf{Link to last version:} \href{ {{ control_version.runcard_link | replace('_', '\\_') }} }{ {{ control_version.runcard_link | replace('_', '\\_') }} }
+
+
+\columnbreak
+
+\subsection{Control Version}
+\begin{tauenv}[frametitle=Python Packages]
+\begin{tabular}{@{}ll@{}}
+\toprule
+Library & Version \\ \midrule
+{% for key, value in control_version.versions.items() %}
+{{ key | replace('_', '\\_') }} & {{ value | replace('_', '\\_') }} \\
+{% endfor %}
+\bottomrule
+\end{tabular}
+\hspace{1cm}
+\begin{minipage}[t]{0.45\linewidth}
+\begin{itemize}
+\item \textbf{Runcard used:} {{ control_version.runcard | replace('_', '\\_') }}
+\item \textbf{Link:} \href{ {{ control_version.runcard_link }} }{ {{ control_version.runcard_link }} }
+\item ...
+
+\end{itemize}
 \end{minipage}
+\end{tauenv}
 
-\vspace{2em}
 
-% Routine results table
-\section*{Routine Results}
-\begin{longtable}{@{}lllll@{}}
-    \toprule
-    Routine & Avg. Result $\pm$ Error & Best Qubit & Worst Qubit \\ \midrule
-    \endfirsthead
-    {% for row in routine_results %}
-    {{ row.routine }} & {{ row.avg_result_error }} & {{ row.best_qubit }} & {{ row.worst_qubit }} \\
-    {% endfor %}
-    \bottomrule
-\end{longtable}
+\end{multicols}
 
-\vspace{2em}
+\section{Benchmark Results}
 
-% T1/T2 values table
-\section*{T1/T2 Values During Benchmark Suite}
-\begin{longtable}{@{}llll@{}}
-    \toprule
-    Qubit & T1 (us) & T2 (us) & Outlier? \\ \midrule
-    \endfirsthead
-    {% for row in t1t2_values %}
-    {{ row.qubit }} & {{ row.t1 }} & {{ row.t2 }} & {{ row.outlier }} \\
-    {% endfor %}
-    \bottomrule
-\end{longtable}
+\begin{multicols}{2}
+
+\subsection{New Fidelities}
+\begin{center}
+\begin{tabular}{@{}c c c@{}}
+\toprule
+Qubit n & Fidelity & Error Bars \\ \midrule
+{% for row in new_fidelity %}
+{{ row.qn }} & {{ row.fidelity }} & $\pm$ {{ row.error_bars }} \\
+{% endfor %}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\columnbreak
+
+\subsection{Control Fidelities}
+\begin{center}
+\begin{tabular}{@{}c c c@{}}
+\toprule
+Qubit n & Fidelity & Error Bars \\ \midrule
+{% for row in control_fidelity %}
+{{ row.qn }} & {{ row.fidelity }} & $\pm$ {{ row.error_bars }} \\
+{% endfor %}
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{multicols}
+
+
+
+\newpage
+\subsection{Routine Results}
+\begin{table}[h]
+\caption{Summary of Quantum Routine Performance}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Routine & Avg. Result $\pm$ Error & Best Qubit & Worst Qubit \\ \midrule
+{% for row in routine_results %}
+{{ row.routine }} & {{ row.avg_result_error }} & {{ row.best_qubit }} & {{ row.worst_qubit }} \\
+{% endfor %}
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Coherence Times}
+\begin{table}[h]
+\caption{T1/T2 Values During Benchmark Suite}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Qubit & T1 ($\mu$s) & T2 ($\mu$s) & Outlier? \\ \midrule
+{% for row in t1t2_values %}
+{{ row.qubit }} & {{ row.t1 }} & {{ row.t2 }} & {{ row.outlier }} \\
+{% endfor %}
+\bottomrule
+\end{tabular}
+\end{table}
 
 \end{document}

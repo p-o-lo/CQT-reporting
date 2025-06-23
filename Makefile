@@ -9,10 +9,11 @@ build:
 	python src/main.py --experiment-dir $(EXPERIMENT_DIR)
 
 pdf: build
-	cd build && pdflatex report.tex
-	mv build/report.pdf ./
+	mkdir -p build
+	pdflatex -output-directory=build report.tex
+	cp build/report.pdf .
 
 clean:
-	rm -f build/*.tex build/*.pdf build/*.aux build/*.log build/*.out
+	rm -f build/* 
 
 all: pdf
