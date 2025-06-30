@@ -33,8 +33,8 @@
 
 \RequirePackage{xcolor}
 \definecolor{taucolor}{rgb}{0.0,0.2,0.4}        % Blue
-% \definecolor{taucolor}{rgb}{0.12, 0.3, 0.17}   % Green
-% \definecolor{taucolor}{rgb}{0.4, 0.26, 0.13}   % Brown
+\definecolor{taucolorgreen}{rgb}{0.12, 0.3, 0.17}   % Green
+\definecolor{taucolorbrown}{rgb}{0.4, 0.26, 0.13}   % Brown
 
 %----------------------------------------------------------
 % TAUENV-, INFO-, NOTE- ENVIRONMENTS
@@ -60,6 +60,36 @@
 ]{tauenv}
 
 %----------------------------------------------------------
+
+
+
+%----------------------------------------------------------
+% TAUENV-, INFO-, NOTE- ENVIRONMENTS
+%----------------------------------------------------------
+
+% Tauenv
+\newmdenv[
+    backgroundcolor=taucolorgreen!22, 					
+    linecolor=taucolorgreen!22,									
+    linewidth=0.7pt,
+    frametitle=\vskip0pt\bfseries,
+    frametitlerule=false,
+    frametitlefont=\color{taucolor}\bfseries\sffamily,
+    frametitlealignment=\raggedright,
+    innertopmargin=3pt,
+    innerbottommargin=6pt,
+    innerleftmargin=6pt,
+    innerrightmargin=6pt,
+    font=\selectfont,
+    fontcolor=taucolor,									
+    frametitleaboveskip=8pt,
+    skipabove=10pt
+]{tauenvmine}
+
+%----------------------------------------------------------
+
+
+
 
 % Info
 \newmdenv[

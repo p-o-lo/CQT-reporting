@@ -1,4 +1,12 @@
 build/*
 report.tex
 report.pdf
-.DS_Store
+**/.DS_Store
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.so
+**/*.dll
+**/*.egg-info/
+**/*.egg

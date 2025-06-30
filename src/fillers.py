@@ -1,97 +1,201 @@
-from abc import ABC, abstractmethod
+import argparse
 from pathlib import Path
+from datetime import datetime
+from jinja2 import Environment, FileSystemLoader
+import logging
+import os
 import json
-from typing import Dict, Any, List
+import numpy as np
+import pdb
 
 
-class Filler(ABC):
-    """Abstract base class for filling sections of the PDF report."""
-
-    def __init__(self, experiment_dir: str):
-        self.experiment_dir = experiment_dir
-        self.data_path = Path("data") / experiment_dir
-
-    @abstractmethod
-    def get_section_name(self) -> str:
-        """Return the name of the section this filler handles."""
-        pass
-
-    @abstractmethod
-    def fill_data(self) -> Dict[str, Any]:
-        """Extract and process data for this section."""
-        pass
-
-    @abstractmethod
-    def get_template_context(self) -> Dict[str, Any]:
-        """Return template context variables for rendering."""
-        pass
+def context_new_version(args, meta_data):
+    """
+    Get the current version of the libraries used in the benchmarking suite.
+    """
+    return {
+        "versions": meta_data.get("versions", {}),
+        "runcard": meta_data.get("runcard", args.experiment_dir),
+        "runcard_link": meta_data.get("runcard_link", "https://link-to-runcard.com"),
+    }
 
 
-class LibraryVersionsFiller(Filler):
-    """Filler for the library versions summary table."""
+def context_control_version(args):
+    """
+    Get the control version of the libraries used in the benchmarking suite.
+    """
+    meta_json_path = Path("data") / args.experiment_dir_baseline / "meta.json"
+    with open(meta_json_path, "r") as f:
+        meta_data = json.load(f)
+    return {
+        "versions": meta_data.get("versions", {}),
+        "runcard": meta_data.get("runcard", args.experiment_dir_baseline),
+        "runcard_link": meta_data.get("runcard_link", "https://link-to-runcard.com"),
+    }
 
-    def get_section_name(self) -> str:
-        return "Library Versions"
 
-    def fill_data(self) -> Dict[str, Any]:
-        """Extract library version data from experiment files."""
-        # Look for metadata or configuration files that might contain library versions
-        version_data = {}
+def context_fidelity(experiment_dir):
+    """
+    Extracts the list of fidelities and error bars from the experiment results.
+    Returns a list of dicts: {"fidelity": ..., "error_bars": ...}
+    """
+    results_json_path = Path("data") / experiment_dir / "data/rb-0/results.json"
+    with open(results_json_path, "r") as f:
+        results = json.load(f)
 
-        # Check for common metadata files
-        metadata_files = [
-            "metadata.json",
-            "versions.json",
-            "requirements.json",
-            "environment.json",
-        ]
+    fidelities = results.get('"fidelity"', {})
+    error_bars = results.get('"error_bars"', {})
 
-        for filename in metadata_files:
-            file_path = self.data_path / filename
-            if file_path.exists():
-                try:
-                    with open(file_path, "r") as f:
-                        data = json.load(f)
-                        if "libraries" in data:
-                            version_data = data["libraries"]
-                        elif "versions" in data:
-                            version_data = data["versions"]
-                        elif isinstance(data, dict) and any(
-                            key in data
-                            for key in ["qibo", "numpy", "qibolab", "qibocal"]
-                        ):
-                            version_data = data
-                        break
-                except Exception as e:
-                    print(f"Error reading {filename}: {e}")
+    # Convert dict_values to list and get the first item (which should be a list)
+    fidelities_list = list(fidelities.values())
+    # Extract the first element from each key ("1", "2", ..., "20") in error_bars
+    error_bars_list = []
+    for k in sorted(error_bars.keys(), key=lambda x: int(x)):
+        values = error_bars[k]
+        if isinstance(values, list) and values:
+            error_bars_list.append(values[0])
+        else:
+            error_bars_list.append(None)
 
-        # Default versions if no metadata found
-        if not version_data:
-            version_data = {
-                "qibo": "0.2.18",
-                "numpy": "2.3.0",
-                "qibolab": "0.2.7",
-                "qibocal": "0.2.2",
-            }
-            print(
-                f"No library version metadata found in {self.data_path}, using defaults"
-            )
-
-        return version_data
-
-    def get_template_context(self) -> Dict[str, Any]:
-        """Return template context for library versions section."""
-        library_versions = self.fill_data()
-
-        # Convert to table format
-        version_headers = ["Library", "Version"]
-        version_table = []
-
-        for library, version in library_versions.items():
-            version_table.append([library, str(version)])
-
-        return {
-            "library_versions_headers": version_headers,
-            "library_versions_table": version_table,
-            "has_library_versions": len(version_table) > 0,
+    _ = [
+        {
+            "qn": i,
+            "fidelity": f"{f:.3g}" if isinstance(f, (float, int)) else f,
+            "error_bars": f"{e:.3g}" if isinstance(e, (float, int)) else e,
         }
+        for i, (f, e) in enumerate(zip(fidelities_list, error_bars_list))
+    ]
+    # mark the best fidelity by writing the element to \textcolor{green}{element}
+    max_fidelity = np.nanmax(
+        [
+            float(item["fidelity"])
+            for item in _
+            if isinstance(item["fidelity"], (float, int))
+            or (
+                isinstance(item["fidelity"], str)
+                and item["fidelity"].replace(".", "", 1).isdigit()
+            )
+        ]
+    )
+    # print(max_fidelity)
+    _ = [
+        {
+            "qn": item["qn"],
+            "fidelity": (
+                f"\\textcolor{{green}}{{{item['fidelity']}}}"
+                if (
+                    np.isclose(
+                        float(item["fidelity"]), max_fidelity, rtol=1e-3, atol=1e-3
+                    )
+                )
+                else item["fidelity"]
+            ),
+            "error_bars": item["error_bars"],
+        }
+        for item in _
+    ]
+
+    # Debugging line to inspect the fidelity and error bars
+    # Zip and return as list of dicts for template clarity
+    return _
+
+
+def get_stat_fidelity(experiment_dir):
+    """
+    Returns a dictionary with average, min, max, and median fidelity for the given experiment directory.
+    """
+    results_json_path = Path("data") / experiment_dir / "data/rb-0/results.json"
+    with open(results_json_path, "r") as f:
+        results = json.load(f)
+
+    fidelities = results.get('"fidelity"', {})
+    # Convert dict_values to list and flatten if needed
+    fidelities_list = list(fidelities.values())
+
+    # Convert all values to float if possible
+    numeric_fidelities = []
+    for f in fidelities_list:
+        try:
+            numeric_fidelities.append(float(f))
+        except (ValueError, TypeError):
+            continue
+
+    if not numeric_fidelities:
+        return {"average": None, "min": None, "max": None, "median": None}
+
+    dict_fidelities = {
+        "average": f"{np.nanmean(numeric_fidelities):.3g}",
+        "min": f"{np.nanmin(numeric_fidelities):.3g}",
+        "max": f"{np.nanmax(numeric_fidelities):.3g}",
+        "median": f"{np.nanmedian(numeric_fidelities):.3g}",
+    }
+
+    return dict_fidelities
+
+
+def get_stat_t12(experiment_dir, stat_type):
+    """
+    Returns a dictionary with average, min, max, and median T1 for the given experiment directory.
+    """
+    results_json_path = Path("data") / experiment_dir / "platform/calibration.json"
+    with open(results_json_path, "r") as f:
+        results = json.load(f)
+
+    # Extract T1 values for all qubits from the "single_qubits" section
+    single_qubits = results.get("single_qubits", {})
+    ts_list = []
+    for qubit_data in single_qubits.values():
+        t1_values = qubit_data.get(stat_type, [])
+        # Only consider non-null, numeric values
+        for t in t1_values:
+            if t is not None:
+                try:
+                    ts_list.append(float(t))
+                except (ValueError, TypeError):
+                    continue
+
+    numeric_ts = ts_list
+
+    if not numeric_ts:
+        return {"average": None, "min": None, "max": None, "median": None}
+
+    dict_ts = {
+        "average": f"{np.nanmean(numeric_ts):.3g}",
+        "min": f"{np.nanmin(numeric_ts):.3g}",
+        "max": f"{np.nanmax(numeric_ts):.3g}",
+        "median": f"{np.nanmedian(numeric_ts):.3g}",
+    }
+    return dict_ts
+
+
+def get_stat_pulse_fidelity(experiment_dir):
+    """
+    Returns a dictionary with average, min, max, and median pulse fidelity for the given experiment directory.
+    """
+    results_json_path = Path("data") / experiment_dir / "data/rb-0/results.json"
+    with open(results_json_path, "r") as f:
+        results = json.load(f)
+
+    pulse_fidelities = results.get('"pulse_fidelity"', {})
+    # Convert dict_values to list and flatten if needed
+    pulse_fidelities_list = list(pulse_fidelities.values())
+
+    # Convert all values to float if possible
+    numeric_pulse_fidelities = []
+    for f in pulse_fidelities_list:
+        try:
+            numeric_pulse_fidelities.append(float(f))
+        except (ValueError, TypeError):
+            continue
+
+    if not numeric_pulse_fidelities:
+        return {"average": None, "min": None, "max": None, "median": None}
+
+    dict_pulse_fidelities = {
+        "average": f"{np.nanmean(numeric_pulse_fidelities):.3g}",
+        "min": f"{np.nanmin(numeric_pulse_fidelities):.3g}",
+        "max": f"{np.nanmax(numeric_pulse_fidelities):.3g}",
+        "median": f"{np.nanmedian(numeric_pulse_fidelities):.3g}",
+    }
+
+    return dict_pulse_fidelities

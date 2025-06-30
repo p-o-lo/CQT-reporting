@@ -5,7 +5,7 @@ TARGET = report.pdf
 # Default experiment directory
 EXPERIMENT_DIR ?= rb-1306
 
-build:
+build: clean
 	python src/main.py --experiment-dir $(EXPERIMENT_DIR)
 
 pdf: build

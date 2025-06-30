@@ -151,7 +151,15 @@
 
 %----------------------------------------------------------
 
-\RequirePackage[colorlinks=true,linkcolor=red,urlcolor=red,citecolor=red]{hyperref}
+% \RequirePackage[colorlinks=true,linkcolor=red,urlcolor=red,citecolor=red]{hyperref}
+\RequirePackage[pdfborder={1 1 1}]{hyperref}
+\hypersetup{
+  linkbordercolor={1 0 0},  % red
+  urlbordercolor={1 0 0},   % red
+  citebordercolor={1 0 0}   % red
+}
+
+
 \RequirePackage{cleveref}
 \RequirePackage{bookmark}
 
@@ -475,13 +483,13 @@
 % BIBLATEX
 %----------------------------------------------------------
 
-\RequirePackage[
-    backend=biber,
-    style=ieee,
-    sorting=ynt
-]{biblatex}
+% \RequirePackage[
+%     backend=biber,
+%     style=ieee,
+%     sorting=ynt
+% ]{biblatex}
 
-\addbibresource{tau.bib}
+% \addbibresource{tau.bib}
 
 %----------------------------------------------------------
 

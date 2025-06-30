@@ -6,6 +6,8 @@ import logging
 import os
 import json
 import numpy as np
+import fillers as fl
+import sys
 
 # Configure logging
 logging.basicConfig(
@@ -32,85 +34,39 @@ def setup_argument_parser():
     return parser
 
 
-def context_new_version(args, meta_data):
+def add_stat_changes(current, baseline):
     """
-    Get the current version of the libraries used in the benchmarking suite.
+    Returns a dict with average, min, max, median and their changes vs baseline.
     """
-    return {
-        "versions": meta_data.get("versions", {}),
-        "runcard": meta_data.get("runcard", "What do you want here?"),
-        "runcard_link": meta_data.get("runcard_link", "https://link-to-runcard.com"),
-    }
 
+    def get_change(curr, base):
+        if curr is None or base is None:
+            return None
+        try:
+            diff = float(curr) - float(base)
+            if base == 0:
+                return None
+            percent = (diff / float(base)) * 100
+            if percent > 0:
+                return f"(+{percent:.2f}\%)"
+            elif percent < 0:
+                return f"(-{percent:.2f}\%)"
+            else:
+                return "-"
+            # return f"{diff:+.4g} ({percent:+.2f}\%)"
+        except Exception as e:
+            print(f"Error calculating change: {e}")
+            sys.exit(1)
+            return None
 
-def context_control_version(args):
-    """
-    Get the control version of the libraries used in the benchmarking suite.
-    """
-    meta_json_path = Path("data") / args.experiment_dir_baseline / "meta.json"
-    with open(meta_json_path, "r") as f:
-        meta_data = json.load(f)
-    return {
-        "versions": meta_data.get("versions", {}),
-        "runcard": meta_data.get("runcard", "What do you want here?"),
-        "runcard_link": meta_data.get("runcard_link", "https://link-to-runcard.com"),
-    }
-
-
-def context_fidelity(experiment_dir):
-    """
-    Extracts the list of fidelities and error bars from the experiment results.
-    Returns a list of dicts: {"fidelity": ..., "error_bars": ...}
-    """
-    results_json_path = Path("data") / experiment_dir / "data/rb-0/results.json"
-    with open(results_json_path, "r") as f:
-        results = json.load(f)
-
-    fidelities = results.get('"fidelity"', {})
-    error_bars = results.get('"error_bars"', {})
-
-    # Convert dict_values to list and get the first item (which should be a list)
-    fidelities_list = list(fidelities.values())
-    # Extract the first element from each key ("1", "2", ..., "20") in error_bars
-    error_bars_list = []
-    for k in sorted(error_bars.keys(), key=lambda x: int(x)):
-        values = error_bars[k]
-        if isinstance(values, list) and values:
-            error_bars_list.append(values[0])
-        else:
-            error_bars_list.append(None)
-
-    _ = [
-        {
-            "qn": i,
-            "fidelity": f"{f:.4g}" if isinstance(f, (float, int)) else f,
-            "error_bars": f"{e:.4g}" if isinstance(e, (float, int)) else e,
-        }
-        for i, (f, e) in enumerate(zip(fidelities_list, error_bars_list))
-    ]
-    # mark the best fidelity by writing the element to \textcolor{green}{element}
-    max_fidelity = np.nanmax(
-        [f for f in fidelities_list if isinstance(f, (float, int))]
-    )
-    _ = [
-        {
-            "qn": item["qn"],
-            "fidelity": (
-                f"\\textcolor{{green}}{{{item['fidelity']}}}"
-                if (
-                    isinstance(item["fidelity"], (float, int))
-                    and np.isclose(item["fidelity"], max_fidelity, rtol=1e-5, atol=1e-8)
-                )
-                else item["fidelity"]
-            ),
-            "error_bars": item["error_bars"],
-        }
-        for item in _
-    ]
-
-    # Debugging line to inspect the fidelity and error bars
-    # Zip and return as list of dicts for template clarity
-    return _
+    result = {}
+    for key in ["average", "min", "max", "median"]:
+        curr_val = current.get(key)
+        base_val = baseline.get(key)
+        result[key] = curr_val
+        result[f"{key}_change"] = get_change(curr_val, base_val)
+    print(f"Stat fidelity changes: {result}")
+    return result
 
 
 def prepare_template_context(args):
@@ -120,10 +76,35 @@ def prepare_template_context(args):
     logging.info("Preparing context for full benchmarking report.")
 
     # Load experiment metadata from mega.json
-
     meta_json_path = Path("data") / args.experiment_dir / "meta.json"
     with open(meta_json_path, "r") as f:
         meta_data = json.load(f)
+
+    # Fidelity statistics and changes
+    stat_fidelity = fl.get_stat_fidelity(args.experiment_dir)
+    stat_fidelity_baseline = fl.get_stat_fidelity(args.experiment_dir_baseline)
+    stat_fidelity_with_improvement = add_stat_changes(
+        stat_fidelity, stat_fidelity_baseline
+    )
+
+    # Pulse Fidelity statistics and changes
+    stat_pulse_fidelity = fl.get_stat_pulse_fidelity(args.experiment_dir)
+    stat_pulse_fidelity_baseline = fl.get_stat_pulse_fidelity(
+        args.experiment_dir_baseline
+    )
+    stat_pulse_fidelity_with_improvement = add_stat_changes(
+        stat_pulse_fidelity, stat_pulse_fidelity_baseline
+    )
+
+    # T1 statistics and changes
+    stat_t1 = fl.get_stat_t12(args.experiment_dir, "t1")
+    stat_t1_baseline = fl.get_stat_t12(args.experiment_dir_baseline, "t1")
+    stat_t1_with_improvement = add_stat_changes(stat_t1, stat_t1_baseline)
+
+    # T2 statistics and changes
+    stat_t2 = fl.get_stat_t12(args.experiment_dir, "t2")
+    stat_t2_baseline = fl.get_stat_t12(args.experiment_dir_baseline, "t2")
+    stat_t2_with_improvement = add_stat_changes(stat_t2, stat_t2_baseline)
 
     context = {
         "experiment_name": meta_data.get("title", "Unknown Title"),
@@ -134,11 +115,25 @@ def prepare_template_context(args):
         #
         "report_of_changes": "More report of changes (from software).",
         #
-        "new_version": context_new_version(args, meta_data),
-        "control_version": context_control_version(args),
+        # "stat_fidelity": fl.get_stat_fidelity(args.experiment_dir),
+        # "stat_fidelity_baseline": fl.get_stat_fidelity(args.experiment_dir_baseline),
+        "stat_fidelity": stat_fidelity_with_improvement,
+        "stat_fidelity_baseline": stat_fidelity_baseline,
         #
-        "new_fidelity": context_fidelity(args.experiment_dir),
-        "control_fidelity": context_fidelity(args.experiment_dir_baseline),
+        "stat_pulse_fidelity": stat_pulse_fidelity_with_improvement,
+        "stat_pulse_fidelity_baseline": stat_pulse_fidelity_baseline,
+        #
+        "stat_t1": stat_t1_with_improvement,
+        "stat_t1_baseline": stat_t1_baseline,
+        #
+        "stat_t2": stat_t2_with_improvement,
+        "stat_t2_baseline": stat_t2_baseline,
+        #
+        "new_version": fl.context_new_version(args, meta_data),
+        "control_version": fl.context_control_version(args),
+        #
+        "new_fidelity": fl.context_fidelity(args.experiment_dir),
+        "control_fidelity": fl.context_fidelity(args.experiment_dir_baseline),
     }
 
     return context
