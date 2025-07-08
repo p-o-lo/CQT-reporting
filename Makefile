@@ -6,14 +6,17 @@ TARGET = report.pdf
 EXPERIMENT_DIR ?= rb-1306
 
 build: clean
+	@echo "Building latex report..."
 	python src/main.py --experiment-dir $(EXPERIMENT_DIR)
 
 pdf: build
-	mkdir -p build
-	pdflatex -output-directory=build report.tex
-	cp build/report.pdf .
+	@mkdir -p build
+	@echo "Compiling LaTeX report in pdf..."
+	pdflatex -output-directory=build report.tex > build/pdflatex.log
+	@cp build/report.pdf .
 
 clean:
-	rm -f build/* 
+	@echo "Cleaning build directory..."
+	@rm -f build/* 
 
 all: pdf

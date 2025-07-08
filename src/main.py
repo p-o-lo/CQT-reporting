@@ -8,6 +8,9 @@ import json
 import numpy as np
 import fillers as fl
 import sys
+import plots as pl
+import config
+import pdb
 
 # Configure logging
 logging.basicConfig(
@@ -48,12 +51,12 @@ def add_stat_changes(current, baseline):
                 return None
             percent = (diff / float(base)) * 100
             if percent > 0:
-                return f"(+{percent:.2f}\%)"
+                return f"(+{percent:.2f}\\%)"
             elif percent < 0:
-                return f"(-{percent:.2f}\%)"
+                return f"(-{percent:.2f}\\%)"
             else:
                 return "-"
-            # return f"{diff:+.4g} ({percent:+.2f}\%)"
+            # return f"{diff:+.4g} ({percent:+.2f}\\%)"
         except Exception as e:
             print(f"Error calculating change: {e}")
             sys.exit(1)
@@ -65,7 +68,7 @@ def add_stat_changes(current, baseline):
         base_val = baseline.get(key)
         result[key] = curr_val
         result[f"{key}_change"] = get_change(curr_val, base_val)
-    print(f"Stat fidelity changes: {result}")
+    # print(f"Stat fidelity changes: {result}")
     return result
 
 
@@ -113,7 +116,7 @@ def prepare_template_context(args):
         "start_time": meta_data.get("start-time", "Unknown Start Time"),
         "end_time": meta_data.get("start-time", "Unknown Start Time"),
         #
-        "report_of_changes": "More report of changes (from software).",
+        "report_of_changes": "\\textcolor{green}{More report of changes (from software).}",
         #
         # "stat_fidelity": fl.get_stat_fidelity(args.experiment_dir),
         # "stat_fidelity_baseline": fl.get_stat_fidelity(args.experiment_dir_baseline),
@@ -134,7 +137,55 @@ def prepare_template_context(args):
         #
         "new_fidelity": fl.context_fidelity(args.experiment_dir),
         "control_fidelity": fl.context_fidelity(args.experiment_dir_baseline),
+        #
+        "plot_exp": pl.plot_fidelity_graph(
+            args.experiment_dir, config.connectivity, config.pos
+        ),
+        "plot_baseline": pl.plot_fidelity_graph(
+            args.experiment_dir_baseline, config.connectivity, config.pos
+        ),
+        #
+        "plot_chevron_swap_0": pl.plot_chevron_swap_coupler(
+            qubit_number=0,
+            data_dir="data/DEMODATA/",
+            output_path="build/",
+        ),
+        #
+        "plot_swap_coupler": pl.plot_swap_coupler(
+            qubit_number=0,
+            data_dir="data/DEMODATA/",
+            output_path="build/",
+        ),
     }
+
+    # Add additional plots if needed
+    context["grid_coupler_is_set"] = True
+    grid_coupler_plots = pl.prepare_grid_coupler(
+        max_number=2,
+        data_dir="data/DEMODATA",
+        baseline_dir="data/DEMODATA",
+        output_path="build/",
+    )
+    # pdb.set_trace()
+    context["plot_grid_coupler"] = grid_coupler_plots
+
+    # Add additional chevron_swap_coupler plots if needed
+    context["chevron_swap_coupler_is_set"] = True
+    chevron_swap_coupler_plots = pl.prepare_grid_chevron_swap_coupler(
+        max_number=2,
+        data_dir="data/DEMODATA",
+        baseline_dir="data/DEMODATA",
+        output_path="build/",
+    )
+    context["plot_chevron_swap_coupler"] = chevron_swap_coupler_plots
+
+    context["t1_plot_is_set"] = True
+    t1_plot = pl.prepare_grid_t1_plts(
+        max_number=2,
+        data_dir="data/DEMODATA",
+        output_path="build/",
+    )
+    context["plot_grid_t1"] = t1_plot
 
     return context
 

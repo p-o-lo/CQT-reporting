@@ -61,19 +61,19 @@
 
 % Report of changes
 \section{Report of Changes}
-\taustart{T}his section details the reasons for the new benchmarking suite and summarizes the key changes. This section details the reasons for the new benchmarking suite and summarizes the key changes. This section details the reasons for the new benchmarking suite and summarizes the key changes. (from template)
-
-{{ report_of_changes }}
+\taustart{T}\textcolor{blue}{his section details the reasons for the new benchmarking suite and summarizes the key changes. This section details the reasons for the new benchmarking suite and summarizes the key changes. This section details the reasons for the new benchmarking suite and summarizes the key changes (from template)}. {{ report_of_changes }}
 
 
 \begin{multicols}{2}
 
 \begin{center}
 \begin{tauenvmine}
-\vspace{0.12cm}
+%\vspace{-0.2.cm}
 \centering
-{\Large \textbf{ {{ new_version.runcard | replace('_', '\\_') }} }}
-\vspace{0.15cm}
+{\Large \textbf{ {{ new_version.runcard | replace('_', '\\_') }} }} \\
+%\textbf{Runcard:} \href{ {{ new_version.runcard_link }} }{ {{ new_version.runcard | replace('_', '\\_') }} }
+\href{ {{ new_version.runcard_link }} }{ Link to Runcard }
+%\vspace{0.15cm}
 \end{tauenvmine}
 \end{center}
 
@@ -81,10 +81,12 @@
 
 \begin{center}
 \begin{tauenvmine}
-\vspace{0.12cm}
+%\vspace{-0.2cm}
 \centering
-{\Large \textbf{ {{ control_version.runcard | replace('_', '\\_') }} }}
-\vspace{0.15cm}
+{\Large \textbf{ {{ control_version.runcard | replace('_', '\\_') }} }} \\
+%\textbf{Runcard:} \href{ {{ control_version.runcard_link }} }{ {{ control_version.runcard | replace('_', '\\_') }} }
+\href{ {{ control_version.runcard_link }} }{ Link to Runcard }
+%\vspace{0.15cm}
 \end{tauenvmine}
 \end{center}
 
@@ -93,47 +95,76 @@
 
 %----------------------------------------------------------
 \section{Version Comparison}
-
 \begin{multicols}{2}
 
 %\subsection{New Version}
-\begin{tauenv} %[frametitle=Python Packages]
-\begin{tabular}{@{}ll@{}}
+\begin{tauenv}
+\begin{center}
+\begin{tabular}{@{}ll|ll@{}}
 \toprule
-Library & Version \\ \midrule
-{% for key, value in new_version.versions.items() %}
-{{ key | replace('_', '\\_') }} & {{ value | replace('_', '\\_') }} \\
+\textbf{Library} & \textbf{Version} & \textbf{Library} & \textbf{Version} \\ \midrule
+{% set items = new_version.versions.items()|list %}
+{% for i in range(0, items|length, 2) %}
+    {{ items[i][0] | replace('_', '\\_') }} & {{ items[i][1] | replace('_', '\\_') }} 
+    {% if i + 1 < items|length %}
+        & {{ items[i+1][0] | replace('_', '\\_') }} & {{ items[i+1][1] | replace('_', '\\_') }} \\
+    {% else %}
+        & & \\
+    {% endif %}
 {% endfor %}
 \bottomrule
 \end{tabular}
+\end{center}
 \hspace{1cm}
 \begin{minipage}[t]{0.45\linewidth}
-\textbf{Runcard:} \href{ {{ new_version.runcard_link }} }{ {{ new_version.runcard | replace('_', '\\_') }} }
+
 \end{minipage}
 \end{tauenv}
-
-
 
 \columnbreak
 
 %\subsection{Control Version}
-\begin{tauenv} %[frametitle=Python Packages]
-\begin{tabular}{@{}ll@{}}
+\begin{tauenv}
+\begin{center}
+\begin{tabular}{@{}ll|ll@{}}
 \toprule
-Library & Version \\ \midrule
-{% for key, value in control_version.versions.items() %}
-{{ key | replace('_', '\\_') }} & {{ value | replace('_', '\\_') }} \\
+\textbf{Library} & \textbf{Version} & \textbf{Library} & \textbf{Version} \\ \midrule
+{% set items = control_version.versions.items()|list %}
+{% for i in range(0, items|length, 2) %}
+    {{ items[i][0] | replace('_', '\\_') }} & {{ items[i][1] | replace('_', '\\_') }} 
+    {% if i + 1 < items|length %}
+        & {{ items[i+1][0] | replace('_', '\\_') }} & {{ items[i+1][1] | replace('_', '\\_') }} \\
+    {% else %}
+        & & \\
+    {% endif %}
 {% endfor %}
 \bottomrule
 \end{tabular}
+\end{center}
 \hspace{1cm}
 \begin{minipage}[t]{0.45\linewidth}
-\textbf{Runcard:} \href{ {{ control_version.runcard_link }} }{ {{ control_version.runcard | replace('_', '\\_') }} }
 \end{minipage}
 \end{tauenv}
 
 
 \end{multicols}
+
+
+\section{One and two qubit fidelities}
+\begin{multicols}{2}
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_exp }} }
+\end{center}
+
+\columnbreak
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_baseline }} }
+\end{center}
+\end{multicols}
+
+
 
 
 \section{Statistics} 
@@ -190,10 +221,7 @@ Pulse Fidelity & {{ stat_pulse_fidelity_baseline.average }} & {{ stat_pulse_fide
 
 
 
-
-
-
-
+\newpage
 
 
 
@@ -230,8 +258,68 @@ Qubit n & Fidelity & Error Bars \\ \midrule
 \end{multicols}
 
 
+%\begin{center}
+%\includegraphics[width=0.95\linewidth]{ {{ plot_chevron_swap_0 }} }
+%\end{center}
+
+
+%\begin{center}
+%\includegraphics[width=0.95\linewidth]{ {{ plot_swap_coupler }} }
+%\end{center}
+
+
+{% if grid_coupler_is_set %}
+\section{Grid Coupler Benchmark Plots}
+\begin{figure}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+{% for row in plot_grid_coupler %}
+    \includegraphics[width=0.5\linewidth]{ {{ row.plot }} } &
+    \includegraphics[width=0.5\linewidth]{ {{ row.baseline }} } \\
+{% endfor %}
+\hline
+\end{tabular}
+%\caption{Grid of 8 benchmark plots.}
+\end{figure}
+{% endif %}
+
+{% if chevron_swap_coupler_is_set %}
+\section{Chevron Swap Coupler Benchmark Plots}
+\begin{figure}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+{% for row in plot_chevron_swap_coupler %}
+    \includegraphics[width=0.5\linewidth]{ {{ row.plot }} } &
+    \includegraphics[width=0.5\linewidth]{ {{ row.baseline }} } \\
+{% endfor %}
+\hline
+\end{tabular}
+%\caption{Grid of 8 benchmark plots.}
+\end{figure}
+{% endif %}
+
+{% if t1_plot_is_set is defined %}
+\section{T1 Decay Plots}
+\begin{figure}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+{% for row in plot_grid_t1 %}
+    \includegraphics[width=0.5\linewidth]{ {{ row.plot }} } &
+    \includegraphics[width=0.5\linewidth]{ {{ row.plot_baseline }} } \\
+{% endfor %}
+\hline
+\end{tabular}
+%\caption{Grid of T1 decay plots.}
+\end{figure}
+{% endif %}
 
 \newpage
+
+
+
 \subsection{Routine Results}
 \begin{table}[h]
 \caption{Summary of Quantum Routine Performance}

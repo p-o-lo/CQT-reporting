@@ -9,6 +9,31 @@ import numpy as np
 import pdb
 
 
+import matplotlib.pyplot as plt
+
+
+def context_plot_1(exp_name):
+    """
+    Generates a plot with y-axis from 0 to 1 and x-axis from 0 to 500.
+    Returns the filepath of the saved image.
+    """
+    fig, ax = plt.subplots()
+    ax.set_xlim(0, 500)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_title("Plot 1: what do you want?")
+    # Optionally, plot a line or leave empty
+    # ax.plot([], [])
+    output_dir = Path("build")
+    output_dir.mkdir(exist_ok=True)
+    filename = f"plot_1_{exp_name}.pdf"
+    filepath = output_dir / filename
+    plt.savefig(filepath)
+    plt.close(fig)
+    return str(filepath)
+
+
 def context_new_version(args, meta_data):
     """
     Get the current version of the libraries used in the benchmarking suite.
