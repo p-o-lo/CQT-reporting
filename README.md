@@ -19,7 +19,8 @@ quantum-benchmark-reporter
 ├── Makefile
 ├── pyproject.toml
 ├── uv.lock
-└── README.md
+├── README.md
+└── benchmarking_problems.md
 ```
 
 ## Installation
