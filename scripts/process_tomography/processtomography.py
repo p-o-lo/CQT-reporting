@@ -17,8 +17,13 @@ from qibo.transpiler.placer import Random
 from qibo.transpiler.router import Sabre
 from qibo.transpiler.unroller import NativeGates, Unroller
 
+from scipy.linalg import norm
+import json
+
+
 SUPPORTED_NQUBITS = [1, 2]
 """Supported nqubits for GST."""
+
 
 ANGLES = ["theta", "phi", "lam", "unitary"]
 """Angle names for parametrized gates."""
@@ -533,7 +538,6 @@ def GST(
     return matrices, timings
 
 
-
 def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None, backend=None):
     """Computes the inverse noise for 1 qubit operator.
 
@@ -642,13 +646,8 @@ def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None, backend
     # invNoise = np.zeros((4**nqubits, 4**nqubits))
     # invNoise = np.array(O_exact_PTM) @ (np.array(np.linalg.inv(O_hat)))
 
-
     return np.array(O_hat), np.array(O_exact_PTM)
 
-
-
-from scipy.linalg import norm
-import json
 
 def compute_norms(gate_set: Union[tuple, set, list],
                   nshots=int(1e4),
@@ -799,8 +798,6 @@ def compute_norms(gate_set: Union[tuple, set, list],
         results_dict[key]['noiseless PTM'] = noiselessPTM_temp
     
     return results_dict
-
-
 
 
 def _extract_gate_set(circuit):
