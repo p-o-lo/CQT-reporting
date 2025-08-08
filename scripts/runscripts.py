@@ -3,11 +3,11 @@ import subprocess
 
 # List of subfolders containing main.py
 subfolders = [
-    "GHZ",
-    "mermin5q",
-    "grover2q",
-    "tomography",
-    "reuploading",
+    # "GHZ",
+    # "mermin5q",
+    # "grover2q",
+    # "tomography",
+    # "reuploading",
     "universal_approximant",
     "process_tomography",
 ]
