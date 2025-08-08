@@ -1,3 +1,4 @@
+import argparse
 from qibo import Circuit, gates, set_backend
 import qibo_client
 from dynaconf import Dynaconf
@@ -22,6 +23,21 @@ def grover_2q(qubits, target):
     return c
 
 def main(qubit_pairs, device, nshots, via_client=True):
+    # Load credentials from .secrets.toml
+    settings = Dynaconf(
+        settings_files=[".secrets.toml"], environments=True, env="default"
+    )
+    print("Loaded settings:", settings.as_dict())
+    key = settings.key
+
+    results = dict()
+    data = dict()
+
+    qubit_pairs = [[0, 1]]
+    device = "nqch"
+    nshots = 1000
+    client=qibo_client.Client(token=key)
+
     target = '11'
 
     results["success_rate"] = {}
@@ -45,29 +61,33 @@ def main(qubit_pairs, device, nshots, via_client=True):
             freq = r.frequencies()
         target_freq = freq[target]
         results["success_rate"][f"{qubits}"] = target_freq/nshots
-        results["plotparameters"]["frequencies"][f"{qubits}"] = freq
+        results["plotparameters"]["frequencies"][f"{qubits}"] = r.probabilities(qubits).tolist()
 
+        with open('../../data/grover2q/data.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Load credentials from .secrets.toml
-settings = Dynaconf(
-    settings_files=[".secrets.toml"], environments=True, env="default"
-)
-print("Loaded settings:", settings.as_dict())
-key = settings.key
+        with open('../../data/grover2q/results.json', 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=4)
 
-results = dict()
-data = dict()
-
-qubit_pairs = [[0, 1]]
-device = "nqch"
-nshots = 1000
-
-client=qibo_client.Client(token=key)
-
-main(qubit_pairs, device, nshots, via_client=True)
-
-with open('../../data/grover2q/data.json', 'w', encoding='utf-8') as f:
-    json.dump(data, f, ensure_ascii=False, indent=4)
-
-with open('../../data/grover2q/results.json', 'w', encoding='utf-8') as f:
-    json.dump(results, f, ensure_ascii=False, indent=4)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--qubit_pairs",
+        default=[[0, 1]],
+        type=list,
+        help="Target qubit pairs",
+    )
+    parser.add_argument(
+        "--device", default="nqch", type=str, help="Device to use"
+    )
+    parser.add_argument(
+        "--nshots",
+        default=1000,
+        type=int,
+        help="Number of shots for each circuit",
+    )
+    parser.add_argument(
+        "--via_client", default=True, type=bool, help="Use qibo client or direct"
+    )
+    args = vars(parser.parse_args())
+    main(**args)
