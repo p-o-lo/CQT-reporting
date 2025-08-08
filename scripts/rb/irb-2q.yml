@@ -1,0 +1,13 @@
+platform: sinq-20
+targets: [[2, 3]]
+
+actions:
+- id: rb
+  operation: standard_rb_2q_inter
+  parameters:
+    depths:
+      start: 1
+      stop: 30
+      step: 2
+    niter: 100
+    nshots: 500
