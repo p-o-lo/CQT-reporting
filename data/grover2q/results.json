@@ -1,0 +1,12 @@
+{
+    "success_rate": {
+        "[0, 1]": 1.0
+    },
+    "plotparameters": {
+        "frequencies": {
+            "[0, 1]": {
+                "11": 1000
+            }
+        }
+    }
+}
