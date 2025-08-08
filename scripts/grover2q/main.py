@@ -23,12 +23,14 @@ def grover_2q(qubits, target):
     return c
 
 def main(qubit_pairs, device, nshots, via_client=True):
-    # Load credentials from .secrets.toml
-    settings = Dynaconf(
-        settings_files=[".secrets.toml"], environments=True, env="default"
-    )
-    print("Loaded settings:", settings.as_dict())
-    key = settings.key
+    if via_client:
+        # Load credentials from .secrets.toml
+        settings = Dynaconf(
+            settings_files=[".secrets.toml"], environments=True, env="default"
+        )
+        print("Loaded settings:", settings.as_dict())
+        key = settings.key
+        client=qibo_client.Client(token=key)
 
     results = dict()
     data = dict()
@@ -36,7 +38,6 @@ def main(qubit_pairs, device, nshots, via_client=True):
     qubit_pairs = [[0, 1]]
     device = "nqch"
     nshots = 1000
-    client=qibo_client.Client(token=key)
 
     target = '11'
 
