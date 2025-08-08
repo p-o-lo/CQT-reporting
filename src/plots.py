@@ -286,3 +286,109 @@ def plot_t1_decay(qubit_number, data_dir, output_path="build/", suffix=""):
     plt.savefig(full_path)
     plt.close()
     return full_path
+
+
+def mermin_plot_5q(raw_data, output_path="build/"):
+    with open(raw_data) as r:
+        raw = json.load(r)
+
+    x = np.array(raw["x"])
+    y = np.array(raw["y"])
+
+    plt.plot(x / np.pi * 180, y)
+    plt.axhline(4, color="k", linestyle="dashed", label="Local Realism Bound")
+    plt.axhline(-4, color="k", linestyle="dashed")
+    plt.axhline(16, color="red", linestyle="dashed", label="Quantum Bound")
+    plt.axhline(-16, color="red", linestyle="dashed")
+
+    plt.xlabel(r"$\theta$ [degrees]")
+    plt.ylabel("Result")
+    plt.grid()
+    plt.legend()
+    plt.title(f"Mermin Inequality [5Q]\nMax: {y[np.abs(y).argmax()]}")
+    plt.tight_layout()
+
+    filename = f"mermin_5q.png"
+    full_path = os.path.join(output_path, filename)
+    plt.savefig(full_path)
+    plt.close()
+    return full_path
+    # plt.savefig("mermin_5q.png", dpi=300)
+    # plt.show()
+
+
+def plot_reuploading(x, target, predictions=None, err=None, title="plot", outdir="."):
+    """Plot target function and, optionally, the predictions of our model."""
+    # flatten everything to 1D
+    x = np.asarray(x).reshape(-1)
+    target = np.asarray(target).reshape(-1)
+    if predictions is not None:
+        predictions = np.asarray(predictions).reshape(-1)
+    if err is not None:
+        err = np.asarray(err).reshape(-1)
+
+    plt.figure(figsize=(4, 4 * 6 / 8), dpi=120)
+    plt.plot(
+        x,
+        target,
+        marker="o",
+        markersize=7,
+        alpha=1,
+        label="Targets",
+        ls="-",
+        markeredgecolor="black",
+        color="red",
+    )
+    if predictions is not None:
+        plt.plot(
+            x,
+            predictions,
+            marker="o",
+            markersize=7,
+            alpha=1,
+            label="Predictions",
+            ls="-",
+            markeredgecolor="black",
+            color="blue",
+        )
+    if predictions is not None and err is not None:
+        plt.fill_between(
+            x, predictions - err, predictions + err, alpha=0.3, color="blue"
+        )
+    plt.xlabel(r"$x$")
+    plt.ylabel(r"$f(x)$")
+    plt.legend()
+    os.makedirs(outdir, exist_ok=True)
+    plt.savefig(os.path.join(outdir, f"{title}.pdf"), dpi=300, bbox_inches="tight")
+    plt.close()
+    return os.path.join(outdir, f"{title}.pdf")
+
+
+def plot_grover(data_json, output_path="build/"):
+    """
+    Plot Grover's algorithm results as a histogram of measured bitstrings.
+    """
+    # Load data from JSON file
+    with open(data_json, "r") as f:
+        data = json.load(f)
+
+    # Extract frequencies for the first (and only) key in 'frequencies'
+    frequencies = data["plotparameters"]["frequencies"]
+    key = next(iter(frequencies))
+    freq_dict = frequencies[key]
+
+    bitstrings = list(freq_dict.keys())
+    counts = [freq_dict[bs] for bs in bitstrings]
+
+    plt.figure()
+    plt.bar(bitstrings, counts, color="skyblue", edgecolor="black")
+    plt.xlabel("Bitstring")
+    plt.ylabel("Counts")
+    plt.title("Grover's Algorithm Measurement Histogram")
+    plt.tight_layout()
+
+    os.makedirs(output_path, exist_ok=True)
+    out_file = os.path.join(output_path, "grover_results.pdf")
+    plt.savefig(out_file)
+    plt.close()
+    return out_file

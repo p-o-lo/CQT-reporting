@@ -37,6 +37,51 @@ def setup_argument_parser():
     return parser
 
 
+def do_plot_reuploading(results_file):
+    """
+    Generate reuploading plots for each epoch and a final summary plot using data from the results JSON file.
+
+    Args:
+        results_file (str): Path to the JSON file containing reuploading results.
+    """
+    with open(results_file, "r") as f:
+        results = json.load(f)
+
+    output_dir = os.path.dirname(results_file)
+
+    # Generate a plot for each epoch
+    for epoch_data in results["epoch_data"]:
+        epoch = epoch_data["epoch"]
+        x_train = np.array(epoch_data["x_train"])
+        y_train = np.array(epoch_data["y_train"])
+        predictions = np.array(epoch_data["predictions"])
+
+        pl.plot_reuploading(
+            x=x_train,
+            target=y_train,
+            predictions=predictions,
+            title=f"epoch_{epoch:03d}",
+            outdir=output_dir,
+        )
+
+    # Generate the final summary plot
+    x_train = np.array(results["epoch_data"][-1]["x_train"])
+    y_train = np.array(results["epoch_data"][-1]["y_train"])
+    median_pred = np.array(results["median_predictions"])
+    mad_pred = np.array(results["mad_predictions"])
+
+    pl.plot_reuploading(
+        x=x_train,
+        target=y_train,
+        predictions=median_pred,
+        err=mad_pred,
+        title="final_plot",
+        outdir=output_dir,
+    )
+
+    return os.path.join(output_dir, "final_plot.pdf")
+
+
 def add_stat_changes(current, baseline):
     """
     Returns a dict with average, min, max, median and their changes vs baseline.
@@ -82,6 +127,7 @@ def prepare_template_context(args):
     meta_json_path = Path("data") / args.experiment_dir / "meta.json"
     with open(meta_json_path, "r") as f:
         meta_data = json.load(f)
+    logging.info("Loaded experiment metadata from %s", meta_json_path)
 
     # Fidelity statistics and changes
     stat_fidelity = fl.get_stat_fidelity(args.experiment_dir)
@@ -89,6 +135,7 @@ def prepare_template_context(args):
     stat_fidelity_with_improvement = add_stat_changes(
         stat_fidelity, stat_fidelity_baseline
     )
+    logging.info("Prepared stat_fidelity and stat_fidelity_with_improvement")
 
     # Pulse Fidelity statistics and changes
     stat_pulse_fidelity = fl.get_stat_pulse_fidelity(args.experiment_dir)
@@ -98,16 +145,21 @@ def prepare_template_context(args):
     stat_pulse_fidelity_with_improvement = add_stat_changes(
         stat_pulse_fidelity, stat_pulse_fidelity_baseline
     )
+    logging.info(
+        "Prepared stat_pulse_fidelity and stat_pulse_fidelity_with_improvement"
+    )
 
     # T1 statistics and changes
     stat_t1 = fl.get_stat_t12(args.experiment_dir, "t1")
     stat_t1_baseline = fl.get_stat_t12(args.experiment_dir_baseline, "t1")
     stat_t1_with_improvement = add_stat_changes(stat_t1, stat_t1_baseline)
+    logging.info("Prepared stat_t1 and stat_t1_with_improvement")
 
     # T2 statistics and changes
     stat_t2 = fl.get_stat_t12(args.experiment_dir, "t2")
     stat_t2_baseline = fl.get_stat_t12(args.experiment_dir_baseline, "t2")
     stat_t2_with_improvement = add_stat_changes(stat_t2, stat_t2_baseline)
+    logging.info("Prepared stat_t2 and stat_t2_with_improvement")
 
     context = {
         "experiment_name": meta_data.get("title", "Unknown Title"),
@@ -118,8 +170,6 @@ def prepare_template_context(args):
         #
         "report_of_changes": "\\textcolor{green}{More report of changes (from software).}",
         #
-        # "stat_fidelity": fl.get_stat_fidelity(args.experiment_dir),
-        # "stat_fidelity_baseline": fl.get_stat_fidelity(args.experiment_dir_baseline),
         "stat_fidelity": stat_fidelity_with_improvement,
         "stat_fidelity_baseline": stat_fidelity_baseline,
         #
@@ -157,20 +207,21 @@ def prepare_template_context(args):
             output_path="build/",
         ),
     }
+    logging.info("Basic context dictionary prepared")
 
     # Add additional plots if needed
-    context["grid_coupler_is_set"] = True
+    context["grid_coupler_is_set"] = False
     grid_coupler_plots = pl.prepare_grid_coupler(
         max_number=2,
         data_dir="data/DEMODATA",
         baseline_dir="data/DEMODATA",
         output_path="build/",
     )
-    # pdb.set_trace()
     context["plot_grid_coupler"] = grid_coupler_plots
+    logging.info("Added grid_coupler plots to context")
 
     # Add additional chevron_swap_coupler plots if needed
-    context["chevron_swap_coupler_is_set"] = True
+    context["chevron_swap_coupler_is_set"] = False
     chevron_swap_coupler_plots = pl.prepare_grid_chevron_swap_coupler(
         max_number=2,
         data_dir="data/DEMODATA",
@@ -178,6 +229,7 @@ def prepare_template_context(args):
         output_path="build/",
     )
     context["plot_chevron_swap_coupler"] = chevron_swap_coupler_plots
+    logging.info("Added chevron_swap_coupler plots to context")
 
     context["t1_plot_is_set"] = True
     t1_plot = pl.prepare_grid_t1_plts(
@@ -186,6 +238,49 @@ def prepare_template_context(args):
         output_path="build/",
     )
     context["plot_grid_t1"] = t1_plot
+    logging.info("Added T1 plots to context")
+
+    # MERMIN TABLE
+    maximum_mermin = fl.get_maximum_mermin("data/mermin", "mermin_5q.json")
+    maximum_mermin_baseline = fl.get_maximum_mermin("data/mermin", "mermin_5q.json")
+    context["mermin_maximum"] = maximum_mermin
+    context["mermin_maximum_baseline"] = maximum_mermin_baseline
+
+    # MERMIN PLOTS
+    context["mermin_5_plot_is_set"] = True
+    mermin_5_plot_baseline = pl.mermin_plot_5q(
+        raw_data="data/mermin/mermin_5q_baseline.json",
+        output_path="build/",
+    )
+    mermin_5_plot = pl.mermin_plot_5q(
+        raw_data="data/mermin/mermin_5q.json",
+        output_path="build/",
+    )
+    context["plot_mermin_baseline"] = mermin_5_plot_baseline
+    context["plot_mermin"] = mermin_5_plot
+    logging.info("Added Mermin 5Q plots to context")
+
+    # REUPLOADING PLOTS
+    context["reuploading_plot_is_set"] = True
+    context["plot_reuploading"] = do_plot_reuploading(
+        "data/reuploading/results_reuploading.json"
+    )
+    context["plot_reuploading_baseline"] = do_plot_reuploading(
+        "data/reuploading/results_reuploading.json"
+    )
+    logging.info("Added reuploading plots to context")
+
+    # GROVER PLOTS
+    context["grover_plot_is_set"] = True
+    context["plot_grover2q"] = pl.plot_grover(
+        "data/grover2q/results.json",
+        output_path="build/",
+    )
+    context["plot_grover2q_baseline"] = pl.plot_grover(
+        "data/grover2q/results.json",
+        output_path="build/",
+    )
+    logging.info("Added Grover 2Q plots to context")
 
     return context
 

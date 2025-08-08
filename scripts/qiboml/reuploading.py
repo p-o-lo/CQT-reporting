@@ -163,7 +163,7 @@ if __name__ == "__main__":
     # results_dir = os.path.join(
     #    "data/reuploading/results", f"reuploading_{backend_name}_{nshots}shots_{tag}"
     # )
-    results_dir = "data/reuploading/results"
+    results_dir = "data/reuploading/"
 
     params_dir = os.path.join(results_dir, "params")
     os.makedirs(params_dir, exist_ok=True)
@@ -249,13 +249,14 @@ if __name__ == "__main__":
         }
         plot_data.append(epoch_data)
 
-    # Save all epoch data to a JSON file
-    with open(os.path.join(results_dir, "epoch.json"), "w") as json_file:
-        json.dump(plot_data, json_file, indent=4)
+    # # Save all epoch data to a JSON file
+    # with open(os.path.join(results_dir, "epoch.json"), "w") as json_file:
+    #     json.dump(plot_data, json_file, indent=4)
 
-    # Save loss history to a JSON file
-    with open(os.path.join(results_dir, "loss_history.json"), "w") as json_file:
-        json.dump({"loss_history": loss_history}, json_file, indent=4)
+    # # Save loss history to a JSON file
+    # with open(os.path.join(results_dir, "loss_history.json"), "w") as json_file:
+    #     json.dump({"loss_history": loss_history}, json_file, indent=4)
+
     preds = np.stack(
         [
             torch.stack([model(x) for x in x_train]).squeeze(-1).detach().numpy()
@@ -266,14 +267,12 @@ if __name__ == "__main__":
     median_pred = np.median(preds, axis=0)
     mad_pred = np.median(np.abs(preds - median_pred[None, :]), axis=0)
 
-    np.save(os.path.join(results_dir, "median_predictions.npy"), median_pred)
-    np.save(os.path.join(results_dir, "mad_predictions.npy"), mad_pred)
-
-    plot_target(
-        x_train.detach().numpy(),
-        y_train.detach().numpy(),
-        predictions=median_pred,
-        err=mad_pred,
-        title="final_plot",
-        outdir=results_dir,
-    )
+    # Save predictions and errors
+    results = {
+        "epoch_data": plot_data,
+        "loss_history": loss_history,
+        "median_predictions": median_pred.tolist(),
+        "mad_predictions": mad_pred.tolist(),
+    }
+    with open(os.path.join(results_dir, "results_reuploading.json"), "w") as json_file:
+        json.dump(results, json_file, indent=4)

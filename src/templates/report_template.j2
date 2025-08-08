@@ -188,6 +188,7 @@ Fidelity & {{ stat_fidelity.average }} & {{ stat_fidelity.median }} & {{ stat_fi
  & {{ stat_fidelity.average_change }} & {{ stat_fidelity.median_change }} & {{ stat_fidelity.min_change }} & {{ stat_fidelity.max_change }} \\
 Pulse Fidelity & {{ stat_pulse_fidelity.average }} & {{ stat_pulse_fidelity.median }} & {{ stat_pulse_fidelity.min }} & {{ stat_pulse_fidelity.max }} \\
  & {{ stat_pulse_fidelity.average_change }} & {{ stat_pulse_fidelity.median_change }} & {{ stat_pulse_fidelity.min_change }} & {{ stat_pulse_fidelity.max_change }} \\
+Mermin Max & {{ mermin_maximum }} & & & \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -209,6 +210,7 @@ Fidelity & {{ stat_fidelity_baseline.average }} & {{ stat_fidelity_baseline.medi
  & \phantom{+0.00 (+0.00\%)} & \phantom{+0.00 (+0.00\%)} & \phantom{+0.00 (+0.00\%)} & \phantom{+0.00 (+0.00\%)} \\
 Pulse Fidelity & {{ stat_pulse_fidelity_baseline.average }} & {{ stat_pulse_fidelity_baseline.median }} & {{ stat_pulse_fidelity_baseline.min }} & {{ stat_pulse_fidelity_baseline.max }} \\
  & \phantom{+0.00 (+0.00\%)} & \phantom{+0.00 (+0.00\%)} & \phantom{+0.00 (+0.00\%)} & \phantom{+0.00 (+0.00\%)} \\
+Mermin Max & {{ mermin_maximum }} & & & \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -256,6 +258,76 @@ Qubit n & Fidelity & Error Bars \\ \midrule
 \end{center}
 
 \end{multicols}
+
+
+
+
+\section{5 Qubit Mermin}
+\begin{multicols}{2}
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_mermin_baseline }} }
+\end{center}
+
+\columnbreak
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_mermin }} }
+\end{center}
+\end{multicols}
+
+
+
+\section{Data reuploading}
+\begin{multicols}{2}
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_reuploading }} }
+\end{center}
+
+\columnbreak
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_reuploading_baseline }} }
+\end{center}
+\end{multicols}
+
+
+
+\section{2 Qubit Grover}
+\begin{multicols}{2}
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_grover2q }} }
+\end{center}
+
+\columnbreak
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_grover2q_baseline }} }
+\end{center}
+\end{multicols}
+
+
+\section{GHZ state preparation}
+\begin{multicols}{2}
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_grover2q }} }
+\end{center}
+
+\columnbreak
+
+\begin{center}
+\includegraphics[width=0.95\linewidth]{ {{ plot_grover2q_baseline }} }
+\end{center}
+\end{multicols}
+
+
+
+
+
+\newpage
 
 
 %\begin{center}
@@ -320,30 +392,30 @@ Qubit n & Fidelity & Error Bars \\ \midrule
 
 
 
-\subsection{Routine Results}
-\begin{table}[h]
-\caption{Summary of Quantum Routine Performance}
-\begin{tabular}{@{}llll@{}}
-\toprule
-Routine & Avg. Result $\pm$ Error & Best Qubit & Worst Qubit \\ \midrule
-{% for row in routine_results %}
-{{ row.routine }} & {{ row.avg_result_error }} & {{ row.best_qubit }} & {{ row.worst_qubit }} \\
-{% endfor %}
-\bottomrule
-\end{tabular}
-\end{table}
+%\subsection{Routine Results}
+%\begin{table}[h]
+%\caption{Summary of Quantum Routine Performance}
+%\begin{tabular}{@{}llll@{}}
+%\toprule
+%Routine & Avg. Result $\pm$ Error & Best Qubit & Worst Qubit \\ \midrule
+%{% for row in routine_results %}
+%{{ row.routine }} & {{ row.avg_result_error }} & {{ row.best_qubit }} & {{ row.worst_qubit }} \\
+%{% endfor %}
+%\bottomrule
+%\end{tabular}
+%\end{table}
 
-\subsection{Coherence Times}
-\begin{table}[h]
-\caption{T1/T2 Values During Benchmark Suite}
-\begin{tabular}{@{}llll@{}}
-\toprule
-Qubit & T1 ($\mu$s) & T2 ($\mu$s) & Outlier? \\ \midrule
-{% for row in t1t2_values %}
-{{ row.qubit }} & {{ row.t1 }} & {{ row.t2 }} & {{ row.outlier }} \\
-{% endfor %}
-\bottomrule
-\end{tabular}
-\end{table}
+%\subsection{Coherence Times}
+%\begin{table}[h]
+%\caption{T1/T2 Values During Benchmark Suite}
+%\begin{tabular}{@{}llll@{}}
+%\toprule
+%Qubit & T1 ($\mu$s) & T2 ($\mu$s) & Outlier? \\ \midrule
+%{% for row in t1t2_values %}
+%{{ row.qubit }} & {{ row.t1 }} & {{ row.t2 }} & {{ row.outlier }} \\
+%{% endfor %}
+%\bottomrule
+%\end{tabular}
+%\end{table}
 
 \end{document}

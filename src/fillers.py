@@ -34,6 +34,23 @@ def context_plot_1(exp_name):
     return str(filepath)
 
 
+def get_maximum_mermin(experiment_dir, filename):
+    """
+    Extracts the maximum value from the Mermin results JSON file.
+    """
+    results_json_path = Path(experiment_dir) / filename
+    with open(results_json_path, "r") as f:
+        results = json.load(f)
+
+    # Extract the 'y' values and find the maximum
+    y_values = results.get("y", [])
+    if not y_values:
+        return None
+
+    max_value = np.nanmax(np.abs(np.array(y_values)))
+    return max_value
+
+
 def context_new_version(args, meta_data):
     """
     Get the current version of the libraries used in the benchmarking suite.
