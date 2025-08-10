@@ -377,7 +377,7 @@ def plot_grover(data_json, output_path="build/"):
     key = next(iter(frequencies))
     freq_dict = frequencies[key]
 
-    bitstrings = list(freq_dict.keys())
+    bitstrings = list(freq_dict)
     counts = [freq_dict[bs] for bs in bitstrings]
 
     plt.figure()
@@ -389,6 +389,40 @@ def plot_grover(data_json, output_path="build/"):
 
     os.makedirs(output_path, exist_ok=True)
     out_file = os.path.join(output_path, "grover_results.pdf")
+    plt.savefig(out_file)
+    plt.close()
+    return out_file
+
+
+def plot_ghz(data_json, output_path="build/"):
+    """
+    Plot GHZ results as a histogram of measured bitstrings.
+    Expects a JSON with keys:
+      - success_rate
+      - plotparameters: { frequencies: { <bitstring>: count, ... } }
+    """
+    with open(data_json, "r") as f:
+        data = json.load(f)
+
+    freq_dict = data.get("plotparameters", {}).get("frequencies", {})
+    success_rate = data.get("success_rate", None)
+
+    bitstrings = list(freq_dict.keys())
+    counts = [freq_dict[b] for b in bitstrings]
+
+    plt.figure()
+    plt.bar(bitstrings, counts, color="mediumseagreen", edgecolor="black")
+    plt.xlabel("Bitstring")
+    plt.ylabel("Counts")
+    title = "GHZ State Measurement Histogram"
+    if success_rate is not None:
+        title += f" (Success: {success_rate:.3f})"
+    plt.title(title)
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+
+    os.makedirs(output_path, exist_ok=True)
+    out_file = os.path.join(output_path, "ghz_results.pdf")
     plt.savefig(out_file)
     plt.close()
     return out_file

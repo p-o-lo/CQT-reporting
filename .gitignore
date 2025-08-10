@@ -10,3 +10,8 @@ report.pdf
 **/*.dll
 **/*.egg-info/
 **/*.egg
+credentials.db
+data/universal_approximant/params/
+.secrets.toml
+notes.md
+.github/*

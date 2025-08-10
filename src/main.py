@@ -282,6 +282,18 @@ def prepare_template_context(args):
     )
     logging.info("Added Grover 2Q plots to context")
 
+    # GHZ PLOTS
+    context["ghz_plot_is_set"] = True
+    context["plot_ghz"] = pl.plot_ghz(
+        "data/ghz/ghz_5q_samples.json",
+        output_path="build/",
+    )
+    context["plot_ghz_baseline"] = pl.plot_ghz(
+        "data/ghz/ghz_5q_samples.json",
+        output_path="build/",
+    )
+    logging.info("Added GHZ plots to context")
+
     return context
 
 
