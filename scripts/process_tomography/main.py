@@ -466,16 +466,16 @@ def GST(
         control_qubit = 0
         
     backend = _check_backend(backend)
-    if backend.name == "qibolab" and transpiler is None:  # pragma: no cover
-        transpiler = Passes(
-            connectivity=backend.platform.topology,
-            passes=[
-                Preprocessing(backend.platform.topology),
-                Random(backend.platform.topology),
-                Sabre(backend.platform.topology),
-                Unroller(NativeGates.default()),
-            ],
-        )
+    # if backend.name == "qibolab" and transpiler is None:  # pragma: no cover
+    #     transpiler = Passes(
+    #         connectivity=backend.platform.topology,
+    #         passes=[
+    #             Preprocessing(backend.platform.topology),
+    #             Random(backend.platform.topology),
+    #             Sabre(backend.platform.topology),
+    #             Unroller(NativeGates.default()),
+    #         ],
+    #     )
 
     timings = []
     matrices = []
@@ -676,6 +676,7 @@ def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None):
 if __name__ == "__main__":
 
     backend = construct_backend("numpy")  # , platform="sinq-20")
+    # backend = construct_backend("qibolab", platform="sinq-20")
 
     ### Determine qubits ###
     single_qubit_indices = [0, 1]
@@ -683,7 +684,15 @@ if __name__ == "__main__":
     two_qubit_pairs = [[0, 1]]
     # two_qubit_pairs = [[0, 1], [0, 3], [1, 4], [2, 3], [2, 7], [3, 4], [3, 8], [4, 5], [4, 9], [5, 6], [5, 10], [6, 11], [7, 8], [7, 12], [8, 9], [8, 13], [9, 10], [9, 14], [10, 11], [10, 15], [11, 16], [12, 13], [13, 14], [13, 17], [14, 15], [14, 18], [15, 16], [15, 19], [17, 18], [18, 19]]
 
-
+    from qibo.transpiler import (
+        NativeGates,
+        Passes,
+        Unroller
+    )
+    glist = [gates.GPI2, gates.RZ, gates.Z, gates.CZ]
+    natives = NativeGates(0).from_gatelist(glist)
+    custom_passes = [Unroller(native_gates=natives)]
+    custom_pipeline = Passes(custom_passes)
 
     ### GST EMPTY 1 QUBIT ###
     empty_1qb_matrices = []
@@ -696,8 +705,9 @@ if __name__ == "__main__":
                                         include_empty=True,
                                         control_qubit = None,
                                         target_qubit = int(idx),
-                                        noise_model=noise_model,
-                                        backend=NumpyBackend(),
+                                        noise_model=None,
+                                        backend=backend,
+                                        transpiler=custom_pipeline,
                                       )
         empty_1qb_matrices.append(empty_1qb_matrix)
         empty_1qb_timings.append(timings)
@@ -713,8 +723,9 @@ if __name__ == "__main__":
                                         include_empty=True,
                                         control_qubit = int(pair[0]),
                                         target_qubit = int(pair[1]),
-                                        noise_model=noise_model,
-                                        backend=NumpyBackend(),
+                                        noise_model=None,
+                                        backend=backend,
+                                        transpiler=custom_pipeline,
                                       )
         empty_2qb_matrices.append(empty_2qb_matrix)
         empty_2qb_timings.append(timings)
@@ -731,8 +742,9 @@ if __name__ == "__main__":
                                         include_empty=False,
                                         control_qubit = None,
                                         target_qubit = int(idx),
-                                        noise_model=noise_model,
-                                        backend=NumpyBackend(),
+                                        noise_model=None,
+                                        backend=backend,
+                                        transpiler=custom_pipeline,
                                       )
         gates_1qb_matrices.append(gates_1qb_matrix)
         gates_1qb_timings.append(timings)
@@ -749,8 +761,9 @@ if __name__ == "__main__":
                                         include_empty=False,
                                         control_qubit = int(pair[0]),
                                         target_qubit = int(pair[1]),
-                                        noise_model=noise_model,
-                                        backend=NumpyBackend(),
+                                        noise_model=None,
+                                        backend=backend,
+                                        transpiler=custom_pipeline,
                                       )
         gates_2qb_matrices.append(gates_2qb_matrix)
         gates_2qb_timings.append(timings)
