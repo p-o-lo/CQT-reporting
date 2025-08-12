@@ -7,7 +7,7 @@ import timeit
 import numpy as np
 from sympy import S
 
-from qibo import Circuit, gates, symbols
+from qibo import Circuit, gates, symbols, construct_backend
 from qibo.backends import _check_backend, NumpyBackend
 from qibo.config import raise_error
 from qibo.hamiltonians import SymbolicHamiltonian
@@ -19,6 +19,20 @@ from qibo.transpiler.unroller import NativeGates, Unroller
 
 from scipy.linalg import norm
 import json
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+    force=True
+)
+
+from qibo.noise import NoiseModel, DepolarizingError
+noise_model = NoiseModel()
+noise_model.add(DepolarizingError(0.3))
+import os
+
+
 
 
 SUPPORTED_NQUBITS = [1, 2]
@@ -384,6 +398,7 @@ def _gate_tomography(
 
 def GST(
     gate_set: Union[tuple, set, list],
+    nqubits=None,
     nshots=int(1e4),
     noise_model=None,
     include_empty=False,
@@ -447,8 +462,8 @@ def GST(
     """
 
     if target_qubit is None and control_qubit is None:
-        target_qubit = 0
-        control_qubit = 1
+        target_qubit = 1
+        control_qubit = 0
         
     backend = _check_backend(backend)
     if backend.name == "qibolab" and transpiler is None:  # pragma: no cover
@@ -466,49 +481,60 @@ def GST(
     matrices = []
     empty_matrices = []
     if include_empty or pauli_liouville:
-        for nqubits in SUPPORTED_NQUBITS:
-            if nqubits == 1:
-                ct_qubits = [target_qubit]
-            elif nqubits == 2:
-                ct_qubits = [control_qubit, target_qubit]
-            tic = timeit.default_timer()
-            empty_matrix = _gate_tomography(
-                nqubits=nqubits,
-                gate=None,
-                nshots=nshots,
-                ct_qubits=ct_qubits,
-                noise_model=noise_model,
-                backend=backend,
-                transpiler=transpiler,
-                # ancilla=ancilla,
-            )
-            toc = timeit.default_timer() - tic
-            empty_matrices.append(empty_matrix)
-            timings.append(toc)
-            
-    for _gate in gate_set:
-        if _gate is not None:
-            _gate, nqubits = _extract_gate(_gate)
-            gate = [_gate]
+        # for nqubits in SUPPORTED_NQUBITS:
+        if nqubits not in SUPPORTED_NQUBITS:
+            raise_error(
+                    ValueError,
+                    f"Mismatched inputs: nqubits given as {nqubits}. GST only supports 1 and 2 qubits.",
+                )
         if nqubits == 1:
             ct_qubits = [target_qubit]
         elif nqubits == 2:
             ct_qubits = [control_qubit, target_qubit]
+        else:
+            raise_error(
+                    ValueError,
+                    f"Input for nqubits is required. nqubits given as {nqubits}.",
+                )
         tic = timeit.default_timer()
-        matrices.append(
-            _gate_tomography(
-                nqubits=nqubits,
-                gate=gate,
-                nshots=nshots,
-                ct_qubits=ct_qubits,
-                noise_model=noise_model,
-                backend=backend,
-                transpiler=transpiler,
-                # ancilla=ancilla,
-            )
+        empty_matrix = _gate_tomography(
+            nqubits=nqubits,
+            gate=None,
+            nshots=nshots,
+            ct_qubits=ct_qubits,
+            noise_model=noise_model,
+            backend=backend,
+            transpiler=transpiler,
         )
         toc = timeit.default_timer() - tic
+        empty_matrices.append(empty_matrix)
         timings.append(toc)
+
+    if gate_set is not None:
+        for _gate in gate_set:
+            if _gate is not None:
+                _gate, nqubits = _extract_gate(_gate)
+                gate = [_gate]
+            if nqubits == 1:
+                ct_qubits = [target_qubit]
+            elif nqubits == 2:
+                ct_qubits = [control_qubit, target_qubit]
+    
+    
+            tic = timeit.default_timer()
+            matrices.append(
+                _gate_tomography(
+                    nqubits=nqubits,
+                    gate=gate,
+                    nshots=nshots,
+                    ct_qubits=ct_qubits,
+                    noise_model=noise_model,
+                    backend=backend,
+                    transpiler=transpiler,
+                )
+            )
+            toc = timeit.default_timer() - tic
+            timings.append(toc)
 
     if pauli_liouville:
         if gauge_matrix is not None:
@@ -649,178 +675,210 @@ def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None, backend
     return np.array(O_hat), np.array(O_exact_PTM)
 
 
-def compute_norms(gate_set: Union[tuple, set, list],
-                  nshots=int(1e4),
-                  noise_model=None,
-                  control_qubit=None, 
-                  target_qubit=None,
-                  backend=None,
-                 ):
-    """Computes 1-, 2-, inf-norms for the gates in ``gate_set``.
 
-    Example (to be tidied up):
-            ``` python
-                def _extract_gate_set(circuit):
-                    # Extract gates in desired format
-                    extracted_gate_set = []
-                    for data in circuit.raw['queue']:
-                        gate_class = getattr(gates, data['_class'])  # Get gate class from name
-                        if gate_class == gates.M:  # Ignore measurement gates
-                            continue
-                    
-                        # Extract Unitary gate separately (its matrix is in init_args[0])
-                        if gate_class == gates.Unitary:
-                            matrix = data['init_args'][0]  # The first argument is the matrix
-                            extracted_gate_set.append((gate_class, matrix))
-                        else:
-                            params = list(data['init_kwargs'].values())  # Extract params from init_kwargs
-                            if params:  # If the gate has parameters, store as a tuple
-                                extracted_gate_set.append((gate_class, params))
-                            else:
-                                extracted_gate_set.append(gate_class)
-                        
-                    return extracted_gate_set
+if __name__ == "__main__":
 
-                circuit = Circuit(2, wire_names = [2, 6])
-                circuit.add(gates.Z(0))
-                circuit.add(gates.Y(0))
-                circuit.add(gates.PRX(0, np.pi/4, np.pi/7))
-                circuit.add(gates.RX(0, np.pi/3))
-                circuit.add(gates.RZ(0, np.pi/3))
-                circuit.add(gates.H(0))
-                circuit.add(gates.CZ(0, 1))
-                circuit.add(gates.M(0))
-                
-                gate_set = _extract_gate_set(circuit)
+    backend = construct_backend("numpy")  # , platform="sinq-20")
 
-                data = compute_norms(gate_set = gate_set,
-                                  nshots=int(1e4),
-                                  noise_model=noise_model,
-                                  control_qubit=2, 
-                                  target_qubit=4,
-                                  backend=NumpyBackend()
-                                 )
-                
-                with open('process_tomo_data.json', 'w', encoding='utf-8') as f:
-                            json.dump(data, f, ensure_ascii=False, indent=4)
-                        
-            ```
-    Args:
-        gate_set (tuple or set or list): set of :class:`qibo.gates.Gate` and parameters to run
-            GST on. For instance, ``gate_set = [(gates.RX, [np.pi/3]), gates.Z, (gates.PRX,
-            [np.pi/2, np.pi/3]), (gates.GPI, [np.pi/7]), (gates.Unitary,
-            [np.array([[1, 0], [0, 1]])]), gates.CNOT]``.
-        nshots (int, optional): number of shots used in Gate Set Tomography per gate.
-            Defaults to :math:`10^{4}`.
-        noise_model (:class:`qibo.noise.NoiseModel`, optional): noise model applied to simulate
-            noisy computations.
-        backend (:class:`qibo.backends.abstract.Backend`, optional): backend
-            to be used in the execution. If ``None``, it uses
-            the current backend. Defaults to ``None``.
-    Returns:
-        results_dict (dict): Dictionary with the tomography data.
-    """
-
-    control_qubit = 1
-    target_qubit = 2
-    
-    matrices, timings = GST(gate_set=gate_set,
-                                nshots=int(1e4),
-                                include_empty=True,
-                                control_qubit = control_qubit,
-                                target_qubit = target_qubit,
-                                noise_model=noise_model,
-                                backend=NumpyBackend(),
-                              )
-    gjk_1q, gjk_2q, *O_tildes = matrices
-    gjk_1q_timing, gjk_2q_timing, *O_tildes_timings = timings
-    
-    noiselessPTM = []
-    noisyPTM = []
-    results_dict = {}
-
-    results_dict['empty_1q'] = {}
-    results_dict['empty_2q'] = {}
-    
-    gjk_1q_temp = {
-            "real": gjk_1q.real.tolist(),
-            "imag": gjk_1q.imag.tolist()
-        }
-    results_dict['empty_1q']['data'] = gjk_1q_temp
-    results_dict['empty_1q']['time (s)'] = gjk_1q_timing
-    
-    gjk_2q_temp = {
-            "real": gjk_2q.real.tolist(),
-            "imag": gjk_2q.imag.tolist()
-        }
-    results_dict['empty_2q']['data'] = gjk_2q_temp
-    results_dict['empty_2q']['time (s)'] = gjk_2q_timing
-    
+    ### Determine qubits ###
+    single_qubit_indices = [0, 1]
+    # single_qubit_indices = np.arange(0, 20, 1)
+    two_qubit_pairs = [[0, 1]]
+    # two_qubit_pairs = [[0, 1], [0, 3], [1, 4], [2, 3], [2, 7], [3, 4], [3, 8], [4, 5], [4, 9], [5, 6], [5, 10], [6, 11], [7, 8], [7, 12], [8, 9], [8, 13], [9, 10], [9, 14], [10, 11], [10, 15], [11, 16], [12, 13], [13, 14], [13, 17], [14, 15], [14, 18], [15, 16], [15, 19], [17, 18], [18, 19]]
 
 
-    
-    for ii in range(0, len(gate_set)):
-        if isinstance(gate_set[ii], tuple):
-            gate, params = gate_set[ii]
+
+    ### GST EMPTY 1 QUBIT ###
+    empty_1qb_matrices = []
+    empty_1qb_timings = []
+    for idx in single_qubit_indices:
+        logging.info(f"Empty 1qb matrix on qubit {idx}")
+        empty_1qb_matrix, timings = GST(gate_set=None,
+                                        nqubits = 1,
+                                        nshots=int(1e4),
+                                        include_empty=True,
+                                        control_qubit = None,
+                                        target_qubit = int(idx),
+                                        noise_model=noise_model,
+                                        backend=NumpyBackend(),
+                                      )
+        empty_1qb_matrices.append(empty_1qb_matrix)
+        empty_1qb_timings.append(timings)
+
+    ### GST EMPTY 2 QUBIT ###
+    empty_2qb_matrices = []
+    empty_2qb_timings = []
+    for pair in two_qubit_pairs:
+        logging.info(f"Empty 2qb matrix on qubits {pair[0]}_{pair[1]}")
+        empty_2qb_matrix, timings = GST(gate_set=None,
+                                        nqubits = 2,
+                                        nshots=int(1e4),
+                                        include_empty=True,
+                                        control_qubit = int(pair[0]),
+                                        target_qubit = int(pair[1]),
+                                        noise_model=noise_model,
+                                        backend=NumpyBackend(),
+                                      )
+        empty_2qb_matrices.append(empty_2qb_matrix)
+        empty_2qb_timings.append(timings)
+
+    ### GST 1 QUBIT GATE ###
+    gate_set_1qb = [(gates.GPI2, [np.pi/4]), (gates.GPI2, [np.pi/3])]
+    gates_1qb_matrices = []
+    gates_1qb_timings = []
+    for idx in single_qubit_indices:
+        logging.info(f"1qb gate on qubits {idx}")
+        gates_1qb_matrix, timings = GST(gate_set=gate_set_1qb,
+                                        nqubits = 1,
+                                        nshots=int(1e4),
+                                        include_empty=False,
+                                        control_qubit = None,
+                                        target_qubit = int(idx),
+                                        noise_model=noise_model,
+                                        backend=NumpyBackend(),
+                                      )
+        gates_1qb_matrices.append(gates_1qb_matrix)
+        gates_1qb_timings.append(timings)
+
+    ### GST 2 QUBIT GATE ###
+    gate_set_2qb = [gates.CZ]
+    gates_2qb_matrices = []
+    gates_2qb_timings = []
+    for pair in two_qubit_pairs:
+        logging.info(f"2qb gate on qubits {pair[0]}_{pair[1]}")
+        gates_2qb_matrix, timings = GST(gate_set=gate_set_2qb,
+                                        nqubits = 2,
+                                        nshots=int(1e4),
+                                        include_empty=False,
+                                        control_qubit = int(pair[0]),
+                                        target_qubit = int(pair[1]),
+                                        noise_model=noise_model,
+                                        backend=NumpyBackend(),
+                                      )
+        gates_2qb_matrices.append(gates_2qb_matrix)
+        gates_2qb_timings.append(timings)
+
+    ### Compute PTM for 1 QUBIT  ###
+    noisyPTM_1qb = []
+    noiselessPTM_1qb = []
+    for ii in range(0, len(empty_1qb_matrices)):
+        gjk_1q = empty_1qb_matrices[ii][0]
+            
+        temp_noisyPTM_1qb = []
+        temp_noiselessPTM_1qb = []
+        for jj in range(len(gates_1qb_matrices[ii])):
+            O_tilde = gates_1qb_matrices[ii][jj]
+            temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_1q, O_tilde=O_tilde, O_gate=gate_set_1qb[jj], backend=NumpyBackend())
+            temp_noisyPTM_1qb.append(temp1)
+            temp_noiselessPTM_1qb.append(temp2)
+
+        noisyPTM_1qb.append(temp_noisyPTM_1qb)
+        noiselessPTM_1qb.append(temp_noiselessPTM_1qb)
+
+    ### Compute PTM for 2 QUBIT ###
+    noisyPTM_2qb = []
+    noiselessPTM_2qb = []
+    for ii in range(0, len(empty_2qb_matrices)):
+        gjk_2q = empty_2qb_matrices[ii][0]    
+        O_tilde = gates_2qb_matrices[ii][0]
+        temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_2q, O_tilde=O_tilde, O_gate=gate_set_2qb[0], backend=NumpyBackend())
+        noisyPTM_2qb.append(temp1)
+        noiselessPTM_2qb.append(temp2)
+
+
+    ### Compute norm of the difference between NOISY and NOISELESS ###
+
+    result_dict = {}
+    result_dict['oneQubitNorms'] = {}
+    result_dict['twoQubitNorms'] = {}
+
+    ### One qubit ###
+    for ii in range(0, len(empty_1qb_matrices)):
+        qubit = single_qubit_indices[ii]
+        logging.info(f"Compute norm of 1qb matrices on qubits {qubit}")
+        result_dict['oneQubitNorms'][f'{qubit}'] = {}
+        for jj in range(0, len(gate_set_1qb)):
+            if isinstance(gate_set_1qb[jj], tuple):
+                gate, params = gate_set_1qb[jj]
+            else:
+                gate = gate_set_1qb[jj]
+                params = []
+            gate = gate(qubit, *params)
+            gate_name = gate.name
+
+            diff = noisyPTM_1qb[ii][jj] - noiselessPTM_1qb[ii][jj]
+            one_norm = norm(diff, ord=1)
+            inf_norm = norm(diff, ord=np.inf)
+            two_norm = norm(diff, ord=2)
+            result_dict['oneQubitNorms'][f'{qubit}'][f'{gate_name}({qubit}, {params})'] = {}
+            result_dict['oneQubitNorms'][f'{qubit}'][f'{gate_name}({qubit}, {params})']['one_norm'] = one_norm
+            result_dict['oneQubitNorms'][f'{qubit}'][f'{gate_name}({qubit}, {params})']['inf_norm'] = inf_norm
+            result_dict['oneQubitNorms'][f'{qubit}'][f'{gate_name}({qubit}, {params})']['two_norm'] = two_norm
+            result_dict['oneQubitNorms'][f'{qubit}'][f'{gate_name}({qubit}, {params})']['time (s)'] = gates_1qb_timings[ii][jj]
+            
+    ### Two qubit ###
+    for ii in range(0, len(empty_2qb_matrices)):
+        pair = two_qubit_pairs[ii]
+        logging.info(f"Compute norm of 2qb matrices on qubits {pair[0]}_{pair[1]}")
+
+        result_dict['twoQubitNorms'][f'{pair[0]}_{pair[1]}'] = {}
+
+        if isinstance(gate_set_2qb[0], tuple):
+            gate, params = gate_set_1qb[0]
         else:
-            gate = gate_set[ii]
+            gate = gate_set_2qb[0]
             params = []
-        key = f"{gate}, {params}"
-        results_dict[key] = {}
-        
-        if np.shape(O_tildes[ii]) == (4, 4):
-            temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_1q, O_tilde=O_tildes[ii], O_gate=gate_set[ii], backend=NumpyBackend())
-        elif np.shape(O_tildes[ii]) == (16, 16):
-            temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_2q, O_tilde=O_tildes[ii], O_gate=gate_set[ii], backend=NumpyBackend())
-        noisyPTM.append(temp1)
-        noiselessPTM.append(temp2)
-    
-        diff = noisyPTM[ii] - noiselessPTM[ii]
+        gate = gate(pair[0], pair[1], *params)
+        gate_name = gate.name
+
+        diff = noisyPTM_2qb[ii][jj] - noiselessPTM_2qb[ii][jj]
         one_norm = norm(diff, ord=1)
         inf_norm = norm(diff, ord=np.inf)
         two_norm = norm(diff, ord=2)
-    
-        results_dict[key]['control_qubit'] = control_qubit
-        results_dict[key]['target_qubit'] = target_qubit
-        results_dict[key]['one_norm'] = one_norm
-        results_dict[key]['inf_norm'] = inf_norm
-        results_dict[key]['two_norm'] = two_norm
-        results_dict[key]['time (s)'] = O_tildes_timings[ii]
-        noisyPTM_temp = {
-            "real": noisyPTM[ii].real.tolist(),
-            "imag": noisyPTM[ii].imag.tolist()
-        }
-        noiselessPTM_temp = {
-            "real": noiselessPTM[ii].real.tolist(),
-            "imag": noiselessPTM[ii].imag.tolist()
-        }
-        results_dict[key    ]['noisy PTM'] = noisyPTM_temp
-        results_dict[key]['noiseless PTM'] = noiselessPTM_temp
-    
-    return results_dict
+        result_dict['twoQubitNorms'][f'{pair[0]}_{pair[1]}'][f'{gate_name}({pair[0]}, {pair[1]}, {params})'] = {}
+        result_dict['twoQubitNorms'][f'{pair[0]}_{pair[1]}'][f'{gate_name}({pair[0]}, {pair[1]}, {params})']['one_norm'] = one_norm
+        result_dict['twoQubitNorms'][f'{pair[0]}_{pair[1]}'][f'{gate_name}({pair[0]}, {pair[1]}, {params})']['inf_norm'] = inf_norm
+        result_dict['twoQubitNorms'][f'{pair[0]}_{pair[1]}'][f'{gate_name}({pair[0]}, {pair[1]}, {params})']['two_norm'] = two_norm
+        result_dict['twoQubitNorms'][f'{pair[0]}_{pair[1]}'][f'{gate_name}({pair[0]}, {pair[1]}, {params})']['time (s)'] = gates_2qb_timings[ii][0]
 
+    ### SAVE JSON ###
+    logging.info(f"Saving results (dict format)")
+    results_dir = "data/process_tomography/"
+    with open(os.path.join(results_dir, "results_process_tomography.json"), 'w', encoding='utf-8') as json_file:
+        json.dump(result_dict, json_file, indent=4)
 
-def _extract_gate_set(circuit):
-    # Extract gates in desired format
-    extracted_gate_set = []
-    for data in circuit.raw['queue']:
-        gate_class = getattr(gates, data['_class'])  # Get gate class from name
-        if gate_class == gates.M:  # Ignore measurement gates
-            continue
-    
-        # Extract Unitary gate separately (its matrix is in init_args[0])
-        if gate_class == gates.Unitary:
-            matrix = data['init_args'][0]  # The first argument is the matrix
-            extracted_gate_set.append((gate_class, matrix))
-        else:
-            params = list(data['init_kwargs'].values())  # Extract params from init_kwargs
-            if params:  # If the gate has parameters, store as a tuple
-                extracted_gate_set.append((gate_class, params))
+    ### SAVE NPY FILES ###
+    logging.info(f"Saving matrices (npy format)")
+    results_dir = "data/process_tomography/matrices/"
+    for ii in range(0, len(empty_1qb_matrices)):
+        qubit = single_qubit_indices[ii]
+        np.save(os.path.join(results_dir, f"empty_1qb_matrix_qubit{qubit}.npy"), empty_1qb_matrices[ii])
+
+    for ii in range(0, len(empty_2qb_matrices)):
+        pair = two_qubit_pairs[ii]
+        np.save(os.path.join(results_dir, f"empty_2qb_matrix_qubits{pair[0]}_{pair[1]}.npy"), empty_2qb_matrices[ii])
+
+    for ii in range(0, len(gates_1qb_matrices)):
+        for jj in range(0, len(gates_1qb_matrices[0])):
+            qubit = single_qubit_indices[ii]
+            gate = gate_set_1qb[jj]
+            if isinstance(gate_set_1qb[jj], tuple):
+                gate, params = gate_set_1qb[jj]
             else:
-                extracted_gate_set.append(gate_class)
-        
-    return extracted_gate_set
+                gate = gate_set_1qb[jj]
+                params = []
+            gate = gate(qubit, *params)
+            gate_name = gate.name
+            np.save(os.path.join(results_dir, f"gate_{gate_name}_{np.around(params,4)}_qubit{qubit}.npy"), gates_1qb_matrices[ii][jj])
 
+    for ii in range(0, len(empty_2qb_matrices)):
+        pair = two_qubit_pairs[ii]
 
-
-    
+        if isinstance(gate_set_2qb[0], tuple):
+            gate, params = gate_set_1qb[0]
+        else:
+            gate = gate_set_2qb[0]
+            params = []
+        gate = gate(pair[0], pair[1], *params)
+        gate_name = gate.name
+        np.save(os.path.join(results_dir, f"gate_{gate_name}_{np.around(params,4)}_qubits{pair[0]}_{pair[1]}.npy"), gates_2qb_matrices[ii])
