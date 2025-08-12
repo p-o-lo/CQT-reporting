@@ -564,7 +564,7 @@ def GST(
     return matrices, timings
 
 
-def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None, backend=None):
+def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None):
     """Computes the inverse noise for 1 qubit operator.
 
     Args:
@@ -599,9 +599,6 @@ def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None, backend
 
     if O_gate is None:
         raise TypeError(f"Expected a `qibo.gates.Gate` gate with/without parameters.")
-        
-    if backend is None:  # pragma: no cover
-        backend = GlobalBackend()
         
     # Check if gjk is same shape as O_tilde
     if np.shape(gjk) != np.shape(O_tilde):
@@ -768,7 +765,7 @@ if __name__ == "__main__":
         temp_noiselessPTM_1qb = []
         for jj in range(len(gates_1qb_matrices[ii])):
             O_tilde = gates_1qb_matrices[ii][jj]
-            temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_1q, O_tilde=O_tilde, O_gate=gate_set_1qb[jj], backend=NumpyBackend())
+            temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_1q, O_tilde=O_tilde, O_gate=gate_set_1qb[jj])
             temp_noisyPTM_1qb.append(temp1)
             temp_noiselessPTM_1qb.append(temp2)
 
@@ -781,7 +778,7 @@ if __name__ == "__main__":
     for ii in range(0, len(empty_2qb_matrices)):
         gjk_2q = empty_2qb_matrices[ii][0]    
         O_tilde = gates_2qb_matrices[ii][0]
-        temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_2q, O_tilde=O_tilde, O_gate=gate_set_2qb[0], backend=NumpyBackend())
+        temp1, temp2 = compute_noisy_and_noiseless_PTM(gjk=gjk_2q, O_tilde=O_tilde, O_gate=gate_set_2qb[0])
         noisyPTM_2qb.append(temp1)
         noiselessPTM_2qb.append(temp2)
 
