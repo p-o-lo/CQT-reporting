@@ -72,6 +72,7 @@ subfolders = [
     "reuploading",
     "universal_approximant",
     "process_tomography",
+    "reuploading_classifier",
 ]
 
 # Base path to the scripts directory (run from project root)

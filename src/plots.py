@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import networkx as nx
 import numpy as np
 from matplotlib.colors import BoundaryNorm
@@ -426,3 +427,48 @@ def plot_ghz(data_json, output_path="build/"):
     plt.savefig(out_file)
     plt.close()
     return out_file
+
+def plot_reuploading_classifier(data_json, output_path="build/"):
+    # Retrieve relevant data
+    train_x = np.array(data_json['x_train'])
+    train_y = np.array(data_json['train_predictions'])
+    test_x = np.array(data_json['x_test'])
+    test_y = np.array(data_json['test_predictions'])
+    loss_history = data_json['loss_history']
+    
+    fig = plt.figure(figsize=(8, 6), dpi=120)
+    gs = fig.add_gridspec(2, 2, height_ratios=[2, 1])  # 2 rows, 2 columns
+    
+    # Train plot (top-left)
+    ax_train = fig.add_subplot(gs[0, 0])
+    for label in np.unique(train_y):
+        data_label = np.transpose(train_x[np.where(train_y == label)])
+        ax_train.scatter(data_label[0], data_label[1])
+    ax_train.set_title("Train predictions")
+    ax_train.set_xlabel(r"$x$")
+    ax_train.set_ylabel(r"$y$")
+    circle_train = plt.Circle((0, 0), np.sqrt(2 / np.pi), edgecolor='k', linestyle='--', fill=False)
+    ax_train.add_patch(circle_train)
+    
+    # Test plot (top-right)
+    ax_test = fig.add_subplot(gs[0, 1])
+    for label in np.unique(test_y):
+        data_label = np.transpose(test_x[np.where(test_y == label)])
+        ax_test.scatter(data_label[0], data_label[1])
+    ax_test.set_title("Test predictions")
+    ax_test.set_xlabel(r"$x$")
+    ax_test.set_ylabel(r"$y$")
+    circle_test = plt.Circle((0, 0), np.sqrt(2 / np.pi), edgecolor='k', linestyle='--', fill=False)
+    ax_test.add_patch(circle_test)
+    
+    # Loss plot (bottom row spanning both columns)
+    ax_loss = fig.add_subplot(gs[1, :])
+    ax_loss.plot(loss_history)
+    ax_loss.set_title("Loss plot")
+    ax_loss.set_xlabel(r"$Iteration$")
+    ax_loss.set_ylabel(r"$Loss$")
+    
+    plt.tight_layout()
+    os.makedirs(output_path, exist_ok=True)
+    fig.savefig(os.path.join(output_path, "reuploading_classifier_results.pdf"), bbox_inches='tight', dpi=300)
+    plt.close(fig)
