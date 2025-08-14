@@ -6,6 +6,6 @@
         ]
     ],
     "nshots": 1000,
-    "device": "nqch",
+    "device": "numpy",
     "target": "11"
 }

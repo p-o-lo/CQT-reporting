@@ -2,6 +2,10 @@ import os
 import torch
 import argparse
 import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import config  # scripts/config.py
 
 
 import json
@@ -135,6 +139,12 @@ if __name__ == "__main__":
         default=3,
         help="Number of layers in the quantum circuit (default: 3)",
     )
+    parser.add_argument(
+        "--device",
+        choices=["numpy", "nqch"],
+        default="numpy",
+        help="Execution device (forwarded by runscripts; unused here).",
+    )
     args = parser.parse_args()
 
     x_train = torch.linspace(
@@ -163,8 +173,7 @@ if __name__ == "__main__":
     # results_dir = os.path.join(
     #    "data/reuploading/results", f"reuploading_{backend_name}_{nshots}shots_{tag}"
     # )
-    results_dir = "data/reuploading/"
-
+    results_dir = (config.output_dir_for(__file__) / args.device).as_posix()
     params_dir = os.path.join(results_dir, "params")
     os.makedirs(params_dir, exist_ok=True)
 
@@ -274,5 +283,5 @@ if __name__ == "__main__":
         "median_predictions": median_pred.tolist(),
         "mad_predictions": mad_pred.tolist(),
     }
-    with open(os.path.join(results_dir, "results_reuploading.json"), "w") as json_file:
+    with open(os.path.join(results_dir, "results.json"), "w") as json_file:
         json.dump(results, json_file, indent=4)

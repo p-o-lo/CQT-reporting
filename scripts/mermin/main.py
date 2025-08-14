@@ -4,6 +4,7 @@ import json
 import argparse
 import qibo_client
 from dynaconf import Dynaconf
+
 # os.environ["QIBOLAB_PLATFORMS"] = pathlib.Path("/mnt/scratch/qibolab_platforms_nqch").as_posix()
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,12 +17,20 @@ from utils import (
     compute_mermin,
 )
 
+# Add scripts/ to sys.path so we import scripts/config.py
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import config  # scripts/config.py
+
+
 def create_mermin_circuit(qubits):
     c = Circuit(len(qubits))
     c.add(gates.H(qubits[0]))
-    c.add([gates.CNOT(qubits[i], qubits[i+1]) for i in range(len(qubits)-1)])
+    c.add([gates.CNOT(qubits[i], qubits[i + 1]) for i in range(len(qubits) - 1)])
     c.add(gates.RZ(qubits[0], 0))
     return c
+
 
 def create_mermin_circuits(qubits: list[int], readout_basis: list[str]):
     c = create_mermin_circuit(qubits)
@@ -36,15 +45,16 @@ def create_mermin_circuits(qubits: list[int], readout_basis: list[str]):
 
     return circuits
 
+
 def main(nqubits, qubit_list, device, nshots, via_client):
-    if via_client:
+    if via_client or device == "nqch":
         # Load credentials from .secrets.toml
         settings = Dynaconf(
             settings_files=[".secrets.toml"], environments=True, env="default"
         )
         print("Loaded settings:", settings.as_dict())
         key = settings.key
-        client=qibo_client.Client(token=key)
+        client = qibo_client.Client(token=key)
 
     results = dict()
     data = dict()
@@ -55,7 +65,7 @@ def main(nqubits, qubit_list, device, nshots, via_client):
     data["nqubits"] = nqubits
     data["nshots"] = nshots
     data["device"] = device
-    
+
     glist = [gates.GPI2, gates.RZ, gates.Z, gates.CZ]
     natives = NativeGates(0).from_gatelist(glist)
     custom_passes = [Unroller(native_gates=natives)]
@@ -77,7 +87,8 @@ def main(nqubits, qubit_list, device, nshots, via_client):
             for circ in circuits:
                 circ.set_parameters([theta])
                 if via_client:
-                    job = client.run_circuit(c,device=device, nshots=nshots)
+                    # use the correct circuit variable
+                    job = client.run_circuit(circ, device=device, nshots=nshots)
                     freq = job.result(verbose=True).frequencies()
                 else:
                     freq = circ(nshots=nshots).frequencies()
@@ -87,10 +98,14 @@ def main(nqubits, qubit_list, device, nshots, via_client):
         results["x"][f"{qubits}"] = theta_array.tolist()
         results["y"][f"{qubits}"] = result.tolist()
 
-        with open(f"../../data/mermin/mermin_{nqubits}q.json", 'w', encoding='utf-8') as f:
+        # Write to data/<scriptname>/<device>/results.json
+        out_dir = config.output_dir_for(__file__) / device
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with open(out_dir / "results.json", "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=4)
-        with open(f"../../data/mermin/data_mermin_{nqubits}q.json", 'w', encoding='utf-8') as f:
+        with open(out_dir / f"data_mermin_{nqubits}q.json", "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -106,9 +121,7 @@ if __name__ == "__main__":
         type=list,
         help="Target qubits list",
     )
-    parser.add_argument(
-        "--device", default="nqch", type=str, help="Device to use"
-    )
+    parser.add_argument("--device", choices=["numpy", "nqch"], default="numpy", type=str, help="Device to use")
     parser.add_argument(
         "--nshots",
         default=1000,

@@ -2,8 +2,12 @@ import json
 import numpy as np
 from qibo import Circuit, gates, set_backend
 import os
+import argparse
+import sys
+from pathlib import Path as _P
 
-set_backend("numpy")
+sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
+import config  # scripts/config.py
 
 
 def create_ghz_circuit(nqubits: int):
@@ -16,14 +20,6 @@ def create_ghz_circuit(nqubits: int):
     return c
 
 
-nqubits = 5
-nshots = 1000
-
-circuit = create_ghz_circuit(nqubits)
-result = circuit(nshots=nshots)
-frequencies = result.frequencies()
-
-
 def prepare_ghz_results(frequencies, nshots, nqubits, circuit):
     # Calculate success rate for GHZ state (all 0s or all 1s)
     success_keys = ["0" * nqubits, "1" * nqubits]
@@ -33,18 +29,26 @@ def prepare_ghz_results(frequencies, nshots, nqubits, circuit):
     # Prepare output structure
     all_bitstrings = [format(i, f"0{nqubits}b") for i in range(2**nqubits)]
     freq_dict = {bitstr: frequencies.get(bitstr, 0) for bitstr in all_bitstrings}
-    results = {
-        "success_rate": success_rate,
-        "plotparameters": {"frequencies": freq_dict},
-    }
-    return results
+    return {"success_rate": success_rate, "plotparameters": {"frequencies": freq_dict}}
 
 
-results = prepare_ghz_results(frequencies, nshots, nqubits, circuit)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--nqubits", type=int, default=5)
+    parser.add_argument("--nshots", type=int, default=1000)
+    parser.add_argument("--device", choices=["numpy", "nqch"], default="numpy")
+    args = parser.parse_args()
 
-output_dir = os.path.join("data", "ghz")
-os.makedirs(output_dir, exist_ok=True)
-output_path = os.path.join(output_dir, "ghz_5q_samples.json")
+    if args.device == "numpy":
+        set_backend("numpy")
+    # else: keep default behavior; simulation only
 
-with open(output_path, "w") as f:
-    json.dump(results, f)
+    circuit = create_ghz_circuit(args.nqubits)
+    result = circuit(nshots=args.nshots)
+    frequencies = result.frequencies()
+    results = prepare_ghz_results(frequencies, args.nshots, args.nqubits, circuit)
+
+    out_dir = config.output_dir_for(__file__) / args.device
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "results.json"), "w") as f:
+        json.dump(results, f, indent=4)

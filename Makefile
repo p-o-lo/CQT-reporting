@@ -1,6 +1,6 @@
 TARGET = report.pdf
 
-.PHONY: build clean pdf
+.PHONY: build clean pdf runscripts
 
 # Default experiment directory
 EXPERIMENT_DIR ?= rb-1306
@@ -18,5 +18,9 @@ pdf: build
 clean:
 	@echo "Cleaning build directory..."
 	@rm -f build/* 
+
+runscripts:
+	@echo "Running scripts..."
+	python3 scripts/runscripts.py
 
 all: pdf

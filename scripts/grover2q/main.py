@@ -4,6 +4,11 @@ import qibo_client
 from dynaconf import Dynaconf
 import json
 from pathlib import Path
+import sys
+from pathlib import Path as _P
+
+sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
+import config  # scripts/config.py
 
 
 def grover_2q(qubits, target):
@@ -25,13 +30,11 @@ def grover_2q(qubits, target):
     return c
 
 
-def main(qubit_pairs, device, nshots, via_client=True):
-    if via_client:
-        # Load credentials from .secrets.toml
+def main(qubit_pairs, device, nshots):
+    if device == "nqch":
         settings = Dynaconf(
             settings_files=[".secrets.toml"], environments=True, env="default"
         )
-        print("Loaded settings:", settings.as_dict())
         key = settings.key
         client = qibo_client.Client(token=key)
 
@@ -50,16 +53,13 @@ def main(qubit_pairs, device, nshots, via_client=True):
 
     for qubits in qubit_pairs:
         c = grover_2q(qubits, target)
-        if via_client:
+        if device == "nqch":
             job = client.run_circuit(c, device=device, nshots=nshots)
             r = job.result(verbose=True)
             freq = r.frequencies()
-        else:
+        elif device == "numpy":
             # Support local simulation via numpy backend
-            if device == "numpy":
-                set_backend("numpy")
-            # else:
-            #     set_backend("qibolab", platform=device)
+            set_backend("numpy")
             r = c(nshots=nshots)
             freq = r.frequencies()
 
@@ -72,9 +72,8 @@ def main(qubit_pairs, device, nshots, via_client=True):
         prob_dict = {bs: (freq.get(bs, 0) / nshots) for bs in all_bitstrings}
         results["plotparameters"]["frequencies"][f"{qubits}"] = prob_dict
 
-    # Robust file writing to project-root/data/grover2q
-    repo_root = Path(__file__).resolve().parents[2]  # .../quantum-benchmark-reporter
-    out_dir = repo_root / "data" / "grover2q"
+    # Write to data/<scriptname>/<device>/results.json
+    out_dir = config.output_dir_for(__file__) / device
     out_dir.mkdir(parents=True, exist_ok=True)
     try:
         with (out_dir / "data.json").open("w", encoding="utf-8") as f:
@@ -95,7 +94,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--device",
-        default="nqch",
+        choices=["numpy", "nqch"],
+        default="numpy",
         type=str,
         help="Device to use (e.g., 'nqch' or 'numpy' for local simulation)",
     )
@@ -104,9 +104,6 @@ if __name__ == "__main__":
         default=1000,
         type=int,
         help="Number of shots for each circuit",
-    )
-    parser.add_argument(
-        "--via_client", default=False, type=bool, help="Use qibo client or direct"
     )
     args = vars(parser.parse_args())
     main(**args)

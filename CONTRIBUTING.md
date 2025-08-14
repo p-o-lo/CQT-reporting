@@ -6,11 +6,19 @@ This project organizes experiments as subfolders under `scripts/<experiment>/mai
 ## Rules
 
 - Directory: `scripts/<experiment>/`
-- Data output: `data/<experiment>/`
-- Place your runnable entrypoint in: `scripts/<experiment>/main.py`.
-- Add a helper in `<experiment>/plots.py` with a signature like `plot_<experiment>(data_json, output_path="build/")`
-- The `if __name__ == "__main__":` should call a `main()` function that performs the experiment, then should create the plots. 
-- Call the plot function only *after* running the experiments. Use as input the JSON that the main code of the experiment is creating. 
+- Entrypoint: `scripts/<experiment>/main.py`
+- Data output: `data/<experiment>/<device>/results.json`
+  - `device` is provided via `--device` and must be either `numpy` or `nqch`.
+  - Create the output directory with `mkdir(parents=True, exist_ok=True)` before writing.
+- Use the helper in `scripts/config.py`:
+  - `from pathlib import Path` (already available)
+  - `import sys, pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import config`
+  - Resolve the experiment folder and device path via:
+    ```python
+    out_dir = config.output_dir_for(__file__) / args.device
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ```
+- Optional extra artifacts (e.g., plots, params, matrices) should be saved inside the same folder: `data/<experiment>/<device>/...`.
 - Provide `argparse` with sensible defaults; do not override CLI args in code.
 - Ensure the script runs when the subfolder is added to `scripts/runscripts.py`.
 - Write outputs under `data/<experiment>/...`. Make sure to use a robust path handling and `mkdir(parents=True, exist_ok=True)`.
@@ -27,12 +35,29 @@ This project organizes experiments as subfolders under `scripts/<experiment>/mai
   - Example help: `help="Device to use (e.g., 'nqch' or 'numpy' for local simulation)"`
 - If using remote execution, load credentials via Dynaconf (`.secrets.toml`) and keep defaults runnable locally.
 
+- Device selection:
+  - `--device` must be one of `numpy` or `nqch`.
+  - For local simulation use `numpy` (e.g., `qibo.set_backend("numpy")` or `construct_backend("numpy")`).
+  - For hardware/cloud (`nqch`), load credentials via Dynaconf (`.secrets.toml`) when needed.
+- Runner:
+  - Run from the repository root. Example: `make runscripts`
+  - The batch runner calls `python scripts/<experiment>/main.py` with defaults unless otherwise configured.
+
+
 ## Do not
 
 - Do not hardcode overrides of parsed CLI arguments.
 - Do not write outputs outside `data/<experiment>` or without ensuring directories exist.
 - Do not output non-JSON data. 
 - Do not mix experiment and plot generation
+- We do not use or require the environment variable `QIBOLAB_PLATFORMS`. Do not set it in new experiments.
+
+
+## CLI requirements
+
+Every `main.py` must accept at least:
+- `--device {numpy,nqch}` (default: `numpy`)
+- Other arguments as needed (e.g., `--nshots`, qubit lists, etc.)
 
 
 
@@ -44,90 +69,105 @@ import argparse
 # ...existing code...
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--device", default="nqch", type=str,
+    parser.add_argument("--device", choices=["numpy", "nqch"], default="numpy",
                         help="Device to use (e.g., 'nqch' or 'numpy' for local simulation)")
-    parser.add_argument("--nshots", default=1000, type=int, help="Number of shots for each circuit")
+    parser.add_argument("--nshots", type=int, default=1000, help="Number of shots for each circuit")
     # add other args as needed
-    args = vars(parser.parse_args())
-    main(**args)
+    args = parser.parse_args()
+    main(**vars(args))
 ```
 
-Writing outputs safely to `data/<experiment>` using pathlib (from `scripts/grover2q/main.py`):
+## Writing outputs
+
+Write a single JSON with computed outputs to `data/<experiment>/<device>/results.json`.
+
+Example:
 ```python
-from pathlib import Path
-import json
-# ...existing code...
-repo_root = Path(__file__).resolve().parents[2]  # project root
-out_dir = repo_root / "data" / "grover2q"
+# ...existing code building `results`...
+out_dir = config.output_dir_for(__file__) / args.device
 out_dir.mkdir(parents=True, exist_ok=True)
-with (out_dir / "data.json").open("w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=False, indent=4)
 with (out_dir / "results.json").open("w", encoding="utf-8") as f:
     json.dump(results, f, ensure_ascii=False, indent=4)
 ```
 
-Frequencies dictionary including all bitstrings with zeros for missing outcomes (from `scripts/grover2q/main.py`):
+Optionally, you may also write a `data.json` with static metadata to the same folder.
+
+## Frequencies and histograms
+
+- For histogram-like results, include all bitstrings (use zero for missing counts) in the frequencies dict.
+- Example for a 2-qubit measurement:
 ```python
-# freq = r.frequencies()
-num_bits = len(qubits)
+num_bits = 2
 all_bitstrings = [format(i, f"0{num_bits}b") for i in range(2**num_bits)]
 prob_dict = {bs: (freq.get(bs, 0) / nshots) for bs in all_bitstrings}
-results["plotparameters"]["frequencies"][f"{qubits}"] = prob_dict
+results["plotparameters"]["frequencies"]["[0, 1]"] = prob_dict
 ```
 
 Simple GHZ experiment writing to `data/ghz` (from `scripts/GHZ/main.py`):
 ```python
-# ...existing code...
-all_bitstrings = [format(i, f"0{nqubits}b") for i in range(2**nqubits)]
-freq_dict = {bitstr: frequencies.get(bitstr, 0) for bitstr in all_bitstrings}
-results = {
-    "success_rate": success_rate,
-    "plotparameters": {"frequencies": freq_dict},
-}
-output_dir = os.path.join("data", "ghz")
-os.makedirs(output_dir, exist_ok=True)
-with open(os.path.join(output_dir, "ghz_5q_samples.json"), "w") as f:
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import config
+out_dir = config.output_dir_for(__file__) / args.device
+out_dir.mkdir(parents=True, exist_ok=True)
+with (out_dir / "results.json").open("w") as f:
     json.dump(results, f, indent=4)
 ```
 
-Training-style experiment saving results (from `scripts/reuploading/main.py`):
+Local simulation:
 ```python
-results = {
-    "epoch_data": plot_data,
-    "loss_history": loss_history,
-    "median_predictions": median_pred.tolist(),
-    "mad_predictions": mad_pred.tolist(),
-}
-with open(os.path.join("data/reuploading", "results_reuploading.json"), "w") as json_file:
-    json.dump(results, json_file, indent=4)
+from qibo import set_backend
+if args.device == "numpy":
+    set_backend("numpy")
 ```
 
-Batch runner integration (from `scripts/runscripts.py`):
+## Remote execution (nqch) example
+
+Example snippet for running on nqch using Dynaconf and qibo_client. Save results to data/<experiment>/<device>/results.json via scripts/config.py.
+
 ```python
-subfolders = [
-    # ...existing items...
-    "your_experiment_name",
-]
-# The runner executes scripts/<subfolder>/main.py with default args.
+import argparse, json, sys, pathlib
+from qibo import Circuit, gates, set_backend
+from dynaconf import Dynaconf
+import qibo_client
+
+# Make scripts/config.py importable
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import config
+
+def build_bell():
+    c = Circuit(2)
+    c.add(gates.H(0))
+    c.add(gates.CNOT(0, 1))
+    c.add(gates.M(0, 1))
+    return c
+
+def main(nshots, device):
+    c = build_bell()
+    if device == "nqch":
+        settings = Dynaconf(settings_files=[".secrets.toml"], environments=True, env="default")
+        client = qibo_client.Client(token=settings.key)
+        job = client.run_circuit(c, device="nqch", nshots=nshots)
+        r = job.result(verbose=True)
+        freq = r.frequencies()
+    else:
+        set_backend("numpy")
+        r = c(nshots=nshots)
+        freq = r.frequencies()
+
+    # Minimal results payload
+    results = {"plotparameters": {"frequencies": freq}, "nshots": nshots, "device": device}
+
+    out_dir = config.output_dir_for(__file__) / device
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with (out_dir / "results.json").open("w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=4)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--device", choices=["numpy", "nqch"], default="numpy")
+    parser.add_argument("--nshots", type=int, default=1000)
+    args = parser.parse_args()
+    main(**vars(args))
 ```
-
-## Output format suggestions
-
-- Provide two JSONs when useful:
-  - `data.json`: static metadata (e.g., input qubits, device, shots, targets).
-  - `results.json`: computed outputs (e.g., success rates, plotparameters).
-- For histogram-like outputs:
-  - `results["plotparameters"]["frequencies"]` should be a dict keyed by bitstrings.
-  - Include all bitstrings of the measured register with zero for missing keys.
-  - Example:
-    ```json
-    {
-      "success_rate": {"[0, 1]": 0.93},
-      "plotparameters": {
-        "frequencies": {
-          "[0, 1]": { "00": 0.0, "01": 0.07, "10": 0.0, "11": 0.93 }
-        }
-      }
-    }
-    ```
 
