@@ -1,0 +1,13 @@
+{
+    "backend": "numpy",
+    "qubit_id": 9,
+    "nlayers": 10,
+    "lr": null,
+    "epochs": null,
+    "nshots": 500,
+    "grid": 11,
+    "num_test_samples": 100,
+    "seed": null,
+    "gpu": null,
+    "load_and_test": true
+}

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import networkx as nx
 import numpy as np
 from matplotlib.colors import BoundaryNorm
@@ -461,46 +462,59 @@ def plot_ghz(raw_data, output_path="build/"):
     return out_file
 
 
-def do_plot_reuploading(raw_data):
-    """
-    Generate reuploading plots for each epoch and a final summary plot using data from the results JSON file.
+def plot_reuploading_classifier(raw_data, output_path="build/"):
+    # Retrieve relevant data
 
-    Args:
-        results_file (str): Path to the JSON file containing reuploading results.
-    """
     with open(raw_data, "r") as f:
-        results = json.load(f)
+        data_json = json.load(f)
 
-    output_dir = os.path.dirname(raw_data)
+    train_x = np.array(data_json["x_train"])
+    train_y = np.array(data_json["train_predictions"])
+    test_x = np.array(data_json["x_test"])
+    test_y = np.array(data_json["test_predictions"])
+    loss_history = data_json["loss_history"]
 
-    # Generate a plot for each epoch
-    for epoch_data in results["epoch_data"]:
-        epoch = epoch_data["epoch"]
-        x_train = np.array(epoch_data["x_train"])
-        y_train = np.array(epoch_data["y_train"])
-        predictions = np.array(epoch_data["predictions"])
+    fig = plt.figure(figsize=(8, 6), dpi=120)
+    gs = fig.add_gridspec(2, 2, height_ratios=[2, 1])  # 2 rows, 2 columns
 
-        plot_reuploading(
-            x=x_train,
-            target=y_train,
-            predictions=predictions,
-            title=f"epoch_{epoch:03d}",
-            outdir=output_dir,
-        )
-
-    # Generate the final summary plot
-    x_train = np.array(results["epoch_data"][-1]["x_train"])
-    y_train = np.array(results["epoch_data"][-1]["y_train"])
-    median_pred = np.array(results["median_predictions"])
-    mad_pred = np.array(results["mad_predictions"])
-
-    plot_reuploading(
-        x=x_train,
-        target=y_train,
-        predictions=median_pred,
-        err=mad_pred,
-        title="final_plot",
-        outdir=output_dir,
+    # Train plot (top-left)
+    ax_train = fig.add_subplot(gs[0, 0])
+    for label in np.unique(train_y):
+        data_label = np.transpose(train_x[np.where(train_y == label)])
+        ax_train.scatter(data_label[0], data_label[1])
+    ax_train.set_title("Train predictions")
+    ax_train.set_xlabel(r"$x$")
+    ax_train.set_ylabel(r"$y$")
+    circle_train = plt.Circle(
+        (0, 0), np.sqrt(2 / np.pi), edgecolor="k", linestyle="--", fill=False
     )
+    ax_train.add_patch(circle_train)
 
-    return os.path.join(output_dir, "final_plot.pdf")
+    # Test plot (top-right)
+    ax_test = fig.add_subplot(gs[0, 1])
+    for label in np.unique(test_y):
+        data_label = np.transpose(test_x[np.where(test_y == label)])
+        ax_test.scatter(data_label[0], data_label[1])
+    ax_test.set_title("Test predictions")
+    ax_test.set_xlabel(r"$x$")
+    ax_test.set_ylabel(r"$y$")
+    circle_test = plt.Circle(
+        (0, 0), np.sqrt(2 / np.pi), edgecolor="k", linestyle="--", fill=False
+    )
+    ax_test.add_patch(circle_test)
+
+    # Loss plot (bottom row spanning both columns)
+    ax_loss = fig.add_subplot(gs[1, :])
+    ax_loss.plot(loss_history)
+    ax_loss.set_title("Loss plot")
+    ax_loss.set_xlabel(r"$Iteration$")
+    ax_loss.set_ylabel(r"$Loss$")
+
+    plt.tight_layout()
+    os.makedirs(output_path, exist_ok=True)
+    fig.savefig(
+        os.path.join(output_path, "reuploading_classifier_results.pdf"),
+        bbox_inches="tight",
+        dpi=300,
+    )
+    plt.close(fig)

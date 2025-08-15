@@ -2,6 +2,7 @@ import os
 import argparse
 import pathlib
 import json
+import pickle
 from timeit import time
 import tqdm
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ import torch.nn.functional as F
 torch.set_default_dtype(torch.float64)
 
 from qibo.config import log
-from qibo import Circuit, gates, construct_backend
+from qibo import Circuit, gates, construct_backend, set_backend
 from qibo.transpiler import NativeGates, Passes, Unroller
 from qibo.hamiltonians import SymbolicHamiltonian
 from qibo.symbols import Z
@@ -30,14 +31,11 @@ from qiboml.interfaces.pytorch import QuantumModel
 from qiboml.operations.differentiation import PSR
 from qiboml import ndarray
 
-import sys
+# from src.plots import plot_reuploading_classifier
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-import config  # scripts/config.py
-
-# os.environ["QIBOLAB_PLATFORMS"] = pathlib.Path(
-#     "/mnt/scratch/qibolab_platforms_nqch"
-# ).as_posix()
+os.environ["QIBOLAB_PLATFORMS"] = pathlib.Path(
+    "/mnt/scratch/qibolab_platforms_nqch"
+).as_posix()
 
 
 # Prepare the training dataset
@@ -76,38 +74,7 @@ def create_dataset(grid=None, samples=1000, seed=0):
     return x, y
 
 
-# Plotting functions
-def plot_predictions(x, y, title="scatter_plot", outdir=".", show=False):
-    plt.figure(figsize=(4, 4 * 6 / 8), dpi=120)
-    for label in np.unique(y):
-        data_label = np.transpose(x[np.where(y == label)])
-        plt.scatter(data_label[0], data_label[1])
-    plt.xlabel(r"$x$")
-    plt.ylabel(r"$y$")
-    circle = plt.Circle(
-        (0, 0), np.sqrt(2 / np.pi), edgecolor="k", linestyle="--", fill=False
-    )
-    plt.gca().add_patch(circle)
-    os.makedirs(outdir, exist_ok=True)
-    if show:
-        plt.show()
-    plt.savefig(os.path.join(outdir, f"{title}.pdf"), dpi=300, bbox_inches="tight")
-    plt.close()
-
-
-def plot_loss_history(x, y, title="loss_plot", outdir=".", show=False):
-    plt.figure(figsize=(4, 4 * 6 / 8), dpi=120)
-    plt.plot(x, y)
-    plt.xlabel(r"$Iteration$")
-    plt.ylabel(r"$Loss$")
-    os.makedirs(outdir, exist_ok=True)
-    if show:
-        plt.show()
-    plt.savefig(os.path.join(outdir, f"{title}.pdf"), dpi=300, bbox_inches="tight")
-    plt.close()
-
-
-# Trainable layer
+# Trivial trainable layer
 def trainable_circuit(nqubits, entanglement=True, density_matrix=False):
     """
     Construct a trainable quantum circuit where the amount of entanglement can be tuned
@@ -115,11 +82,7 @@ def trainable_circuit(nqubits, entanglement=True, density_matrix=False):
     circ = Circuit(nqubits, density_matrix=density_matrix)
 
     for q in range(nqubits):
-        circ.add(gates.RZ(q=q, theta=np.random.randn()))
-        circ.add(gates.RX(q=q, theta=np.pi / 2, trainable=False))
-        circ.add(gates.RZ(q=q, theta=np.random.randn()))
-        circ.add(gates.RX(q=q, theta=-np.pi / 2, trainable=False))
-        circ.add(gates.RZ(q=q, theta=np.random.randn()))
+        circ.add(gates.RZ(q=q, theta=0.0))
     return circ
 
 
@@ -153,6 +116,10 @@ def compute_accuracy(labels, predictions, tolerance=1e-2):
 # RxRy Encoding
 @dataclass(eq=False)
 class RYRZEncoding(QuantumEncoding):
+    nlayers = 1
+
+    def update_nlayers(self, nlayers):
+        self.nlayers = nlayers
 
     def __post_init__(
         self,
@@ -172,7 +139,7 @@ class RYRZEncoding(QuantumEncoding):
         By deafult, the map reproduces a simple encoding where the
         i-th component of the data is uploaded in the i-th gate of the queue.
         """
-        return {f"{i}": [i] for i in range(len(self.qubits) * 2)}
+        return {f"{i}": [i] for i in range(len(self.qubits) * 2 * self.nlayers)}
 
     def __call__(self, x: ndarray) -> Circuit:
         """Construct the circuit encoding the ``x`` data in the chosen encoding gate.
@@ -185,12 +152,289 @@ class RYRZEncoding(QuantumEncoding):
         """
         circuit = self.circuit
         x = x.ravel()
-        for i, q in enumerate(self.qubits):
-            for j, gate in enumerate([gates.RY, gates.RZ]):
-                this_gate_params = {"trainable": False}
-                this_gate_params.update({"theta": x[2 * i + j]})
-                circuit.add(gate(q=q, **this_gate_params))
+        nq = self.qubits
+        for l in range(self.nlayers):
+            for i, q in enumerate(nq):
+                for j, gate in enumerate([gates.RY, gates.RZ]):
+                    this_gate_params = {"trainable": False}
+                    this_gate_params.update({"theta": x[2 * 1 * l + 2 * i + j]})
+                    circuit.add(gate(q=q, **this_gate_params))
         return circuit
+
+
+# Linear layer
+def make_linear_layer(nlayers=1):
+    n_in_features = 2
+    n_out_features_per_layer = 2
+    n_out_features = nlayers * n_out_features_per_layer
+    linear_layer = nn.Linear(n_in_features, n_out_features)
+
+    for j in range(n_out_features):
+        i = int(np.mod(j + 1, 2))
+        linear_layer.weight.data[j, i] = 0.0
+
+    return linear_layer
+
+
+# Mask tensor
+def make_mask_tensor(nlayers=1):
+    n_in_features = 2
+    n_out_features_per_layer = 2
+    n_out_features = nlayers * n_out_features_per_layer
+    mask_tensor = torch.tensor(
+        [
+            [
+                0.0 if j == int(np.mod(i + 1, n_in_features)) else 1.0
+                for j in range(n_in_features)
+            ]
+            for i in range(n_out_features)
+        ]
+    )
+    mask_tensor.requires_grad = False
+
+    return mask_tensor
+
+
+# Encoder
+class LinearEncoder(nn.Module):
+    def __init__(self, nlayers=1):
+        super().__init__()
+        self.linear_layer = make_linear_layer(nlayers)
+        self.mask_tensor = make_mask_tensor(nlayers)
+
+    def forward(self, x):
+        masked_linear_layer = self.linear_layer
+        masked_linear_layer.weight.data.mul_(self.mask_tensor)
+        x = masked_linear_layer(x)
+        return x
+
+
+# Load trained weights
+def load_trained_data(file_path):
+    with open(file_path, "rb") as file:
+        trained_data = pickle.load(file)
+
+    trained_weights = trained_data["circle"][10][::2]
+    trained_biases = trained_data["circle"][10][1::2]
+    trained_weights = np.array(
+        [np.diag(pair) for pair in trained_weights.reshape([10, 2])]
+    )
+    trained_weights = trained_weights.reshape([20, 2])
+    trained_weights = torch.tensor(trained_weights, requires_grad=False)
+    trained_biases = torch.tensor(trained_biases, requires_grad=False)
+    return trained_weights, trained_biases
+
+
+# Trained Encoder (nlayers=10 only)
+class TrainedLinearEncoder(nn.Module):
+    def __init__(self, file_path):
+        super().__init__()
+        trained_weights, trained_biases = load_trained_data(file_path)
+        self.linear_layer = make_linear_layer(nlayers=10)
+        self.linear_layer.weight.data = trained_weights
+        self.linear_layer.bias.data = trained_biases
+
+    def forward(self, x):
+        x = self.linear_layer(x)
+        return x
+
+
+def main(
+    backend,
+    qubit_id,
+    nlayers,
+    lr,
+    epochs,
+    nshots,
+    grid,
+    num_test_samples,
+    seed,
+    gpu,
+    load_and_test,
+):
+    nqubits = 1
+    device = torch.device("cpu")
+    script_directory = os.path.dirname(__file__)
+
+    # Set up backend
+    if backend == "numpy":
+        backend = construct_backend(backend)
+    elif backend == "qibolab":
+        backend = construct_backend("qibolab", platform="sinq-20")
+    elif backend == "qiboml":
+        backend = construct_backend("qiboml", platform="pytorch")
+        set_backend(backend="qiboml", platform="pytorch")
+        if gpu:
+            device = torch.device(f"cuda:{gpu}")
+    torch.set_default_device(device)
+
+    # Generate training data
+    training_set = create_dataset(grid=grid)
+    test_set = create_dataset(samples=num_test_samples)
+    x_train = torch.tensor(training_set[0])
+    y_train = torch.tensor(
+        training_set[1].reshape([training_set[1].shape[0], 1]), dtype=torch.float64
+    )
+    x_test = torch.tensor(test_set[0])
+    y_test = torch.tensor(
+        test_set[1].reshape([test_set[1].shape[0], 1]), dtype=torch.float64
+    )
+
+    # Set up transpiler
+    glist = [gates.GPI2, gates.RZ, gates.Z, gates.CZ]
+    natives = NativeGates(0).from_gatelist(glist)
+    custom_passes = [Unroller(native_gates=natives)]
+    custom_pipeline = Passes(custom_passes)
+    transpiler = custom_pipeline
+
+    # Set up directories
+    backend_name = backend.name.lower().replace(" ", "_")
+    output_dir = os.path.join("data", f"reuploading_classifier/")
+    params_dir = os.path.join(output_dir, "params")
+    os.makedirs(params_dir, exist_ok=True)
+
+    # Set seeds
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    # Set up classical preprocessing
+    if load_and_test:
+        file_path = f"{script_directory}/saved_parameters.pkl"
+        linear_encoder = TrainedLinearEncoder(file_path).double()
+        nlayers = 10
+        lr = None
+        epochs = None
+        seed = None
+    else:
+        linear_encoder = LinearEncoder(nlayers=nlayers).double()
+
+    # Build circuits
+    encoding = RYRZEncoding(nqubits=nqubits, density_matrix=False)
+    encoding.update_nlayers(nlayers)
+    circuit_structure = []
+
+    circuit_structure.extend([encoding])
+    circuit_structure.extend(
+        [trainable_circuit(nqubits, entanglement=False, density_matrix=False)]
+    )
+
+    observable = SymbolicHamiltonian(-Z(0), nqubits=nqubits)
+
+    decoding_circ = Expectation(
+        nqubits=nqubits,
+        observable=observable,
+        nshots=nshots,
+        backend=backend,
+        transpiler=transpiler,
+        mitigation_config=None,
+        noise_model=None,
+        density_matrix=False,
+        wire_names=[qubit_id],
+    )
+    # Quantum model
+    q_model_kwargs = dict(circuit_structure=circuit_structure, decoding=decoding_circ)
+    q_model_kwargs["differentiation"] = PSR()
+    q_model = QuantumModel(**q_model_kwargs)
+
+    # Full Model
+    model = nn.Sequential(linear_encoder, q_model)
+
+    duration = None
+    loss_history = []
+    final_loss = None
+
+    if not load_and_test:
+        # Optimizer & loss
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+        criterion = F.binary_cross_entropy_with_logits
+
+        # Training loop
+        mask_tensor = make_mask_tensor(nlayers=nlayers)
+        time_start = time.time()
+
+        for epoch in range(epochs):
+            permutation = torch.randperm(len(x_train))
+            optimizer.zero_grad()
+            y_pred = torch.stack([model(x) for x in x_train[permutation]]).squeeze(-1)
+            loss = criterion(y_pred, y_train[permutation])
+            loss.backward()
+            model[0].linear_layer.weight.grad.data.mul_(mask_tensor)
+            model[-1].circuit_parameters.grad = torch.tensor([0.0], dtype=torch.double)
+            optimizer.step()
+
+            loss_history.append(loss.item())
+            torch.save(
+                model.state_dict(), os.path.join(params_dir, f"epoch_{epoch:03d}.pt")
+            )
+
+            log.info(f"Epoch {epoch}: Loss = {loss.item():.6f}")
+
+        time_end = time.time()
+        duration = time_end - time_start
+        final_loss = loss_history[-1]
+
+    # Compute train/test predictions and train/test accuracies
+    predict_train_start = time.time()
+    train_preds = predict(model, x_train)
+    predict_train_end = time.time()
+    predict_train_duration = predict_train_end - predict_train_start
+
+    predict_test_start = time.time()
+    test_preds = predict(model, x_test)
+    predict_test_end = time.time()
+    predict_test_duration = predict_test_end - predict_test_start
+
+    train_acc = compute_accuracy(y_train, train_preds)
+    test_acc = compute_accuracy(y_test, test_preds)
+
+    # Generate results dictionary and save results and metadata to json files
+    report_data = {
+        "final_loss": final_loss,
+        "train_accuracy": train_acc,
+        "test_accuracy": test_acc,
+        "duration": duration,
+        "x_train": x_train.detach().numpy().tolist(),
+        "train_predictions": train_preds,
+        "x_test": x_test.detach().numpy().tolist(),
+        "test_predictions": test_preds,
+        "loss_history": loss_history,
+        "final_weights": model[0].linear_layer.weight.detach().numpy().tolist(),
+        "final_biases": model[0].linear_layer.bias.detach().numpy().tolist(),
+        "final_RZ_angle_check": model[-1].circuit_parameters.detach().numpy().tolist(),
+        "predict_train_duration": predict_train_duration,
+        "predict_test_duration": predict_test_duration,
+    }
+
+    static_meta_data = {
+        "backend": backend_name,
+        "qubit_id": qubit_id,
+        "nlayers": nlayers,
+        "lr": lr,
+        "epochs": epochs,
+        "nshots": nshots,
+        "grid": grid,
+        "num_test_samples": num_test_samples,
+        "seed": seed,
+        "gpu": gpu,
+        "load_and_test": load_and_test,
+    }
+
+    with open(
+        os.path.join(output_dir, f"results_reuploading_classifier.json"), "w"
+    ) as file:
+        json.dump(report_data, file, indent=4)
+    with open(
+        os.path.join(output_dir, f"data_reuploading_classifier.json"), "w"
+    ) as file:
+        json.dump(static_meta_data, file, indent=4)
+
+    # Load from results.json and generate plots
+    with open(
+        os.path.join(output_dir, f"results_reuploading_classifier.json"), "r"
+    ) as file:
+        loaded_report_data = json.load(file)
+
+    # plot_reuploading_classifier(loaded_report_data, output_path=output_dir)
 
 
 if __name__ == "__main__":
@@ -203,9 +447,9 @@ if __name__ == "__main__":
         default="numpy",
         help="Device to use (default: numpy)",
     )
-    parser.add_argument(
-        "--nqubits", type=int, default=1, help="Number of qubits (default: 1)"
-    )
+    # parser.add_argument(
+    #   "--nqubits", type=int, default=1, help="Number of qubits (default: 1)"
+    # )
     parser.add_argument("--qubit_id", type=int, default=9, help="Qubit ID (default: 9)")
     parser.add_argument(
         "--nlayers", type=int, default=6, help="Number of layers (default: 6)"
@@ -214,7 +458,11 @@ if __name__ == "__main__":
         "--lr", type=float, default=0.1, help="Learning rate (default: 0.1)"
     )
     parser.add_argument(
-        "--epochs", type=int, default=100, help="Number of epochs (default: 100)"
+        "--epochs",
+        type=int,
+        default=100,
+        help="Number of epochs (default: 100)",
+        # "--epochs", type=int, default=10, help="Number of epochs (test: 10)"
     )
     parser.add_argument(
         "--nshots", type=int, default=500, help="Number of shots (default: 500)"
@@ -234,138 +482,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--seed",
         type=int,
-        default=99,
-        help="Random seed value for initializing trainable circuit parameters (default: 99)",
+        default=42,
+        help="Random seed value for initializing trainable circuit parameters (default: 42)",
     )
-    args = parser.parse_args()
-
-    # Generate training data
-    training_set = create_dataset(grid=args.grid)
-    test_set = create_dataset(samples=args.num_test_samples)
-    x_train = torch.tensor(training_set[0])
-    y_train = torch.tensor(
-        training_set[1].reshape([training_set[1].shape[0], 1]), dtype=torch.float64
+    parser.add_argument(
+        "--gpu",
+        type=int,
+        default=None,
+        help="Option to run job on GPU when backend is qiboml. Enter GPU cuda ID (default: None)",
     )
-    x_test = torch.tensor(test_set[0])
-    y_test = torch.tensor(
-        test_set[1].reshape([test_set[1].shape[0], 1]), dtype=torch.float64
+    parser.add_argument(
+        # "--load_and_test", type=bool, default=False, help="Option to load trained weights into model (nlayers=10 only) instead of training (default: False)"
+        "--load_and_test",
+        type=bool,
+        default=True,
+        help="Option to load trained weights into model (nlayers=10 only) instead of training (test: True)",
     )
-
-    # Set up backend
-    backend = construct_backend(args.device)
-
-    # Set up transpiler
-    glist = [gates.GPI2, gates.RZ, gates.Z, gates.CZ]
-    natives = NativeGates(0).from_gatelist(glist)
-    custom_passes = [Unroller(native_gates=natives)]
-    custom_pipeline = Passes(custom_passes)
-    transpiler = custom_pipeline
-
-    # Set up directories
-    backend_name = backend.name.lower().replace(" ", "_")
-    results_dir = (config.output_dir_for(__file__) / args.device).as_posix()
-    params_dir = os.path.join(results_dir, "params")
-    os.makedirs(params_dir, exist_ok=True)
-
-    # Build circuits
-    encoding = RYRZEncoding(nqubits=args.nqubits, density_matrix=False)
-    circuit_structure = []
-
-    np.random.seed(args.seed)
-    for _ in range(args.nlayers):
-        circuit_structure.extend([encoding])
-        circuit_structure.extend(
-            [trainable_circuit(args.nqubits, entanglement=False, density_matrix=False)]
-        )
-
-    observable = SymbolicHamiltonian(Z(0), nqubits=args.nqubits)
-
-    decoding_circ = Expectation(
-        nqubits=args.nqubits,
-        observable=observable,
-        nshots=args.nshots,
-        backend=backend,
-        transpiler=transpiler,
-        mitigation_config=None,
-        noise_model=None,
-        density_matrix=False,
-        wire_names=[args.qubit_id],
-    )
-
-    # Model
-    model_kwargs = dict(circuit_structure=circuit_structure, decoding=decoding_circ)
-    model_kwargs["differentiation"] = PSR()
-    model = QuantumModel(**model_kwargs)
-
-    # Optimizer & loss
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    criterion = F.binary_cross_entropy_with_logits
-
-    # Training loop
-    loss_history = []
-    time_start = time.time()
-
-    for epoch in range(args.epochs):
-        permutation = torch.randperm(len(x_train))
-        optimizer.zero_grad()
-        y_pred = torch.stack([model(x) for x in x_train[permutation]]).squeeze(-1)
-        # y_pred = y_pred.to(device)
-        loss = criterion(y_pred, y_train[permutation])
-        loss.backward()
-        optimizer.step()
-
-        loss_history.append(loss.item())
-        torch.save(
-            model.state_dict(), os.path.join(params_dir, f"epoch_{epoch:03d}.pt")
-        )
-
-        log.info(f"Epoch {epoch}: Loss = {loss.item():.6f}")
-
-    time_end = time.time()
-    duration = time_end - time_start
-
-    np.save(os.path.join(results_dir, "loss_history.npy"), np.array(loss_history))
-
-    train_preds = predict(model, x_train)
-    test_preds = predict(model, x_test)
-
-    train_acc = compute_accuracy(y_train, train_preds)
-    test_acc = compute_accuracy(y_test, test_preds)
-
-    np.save(os.path.join(results_dir, "train_predictions.npy"), train_preds)
-    np.save(os.path.join(results_dir, "test_predictions.npy"), test_preds)
-
-    plot_predictions(
-        x_train.detach().numpy(),
-        train_preds,
-        title="train_predictions_plot",
-        outdir=results_dir,
-    )
-
-    plot_predictions(
-        x_test.detach().numpy(),
-        test_preds,
-        title="test_predictions_plot",
-        outdir=results_dir,
-    )
-
-    plot_loss_history(
-        range(len(loss_history)),
-        loss_history,
-        title="loss_history_plot",
-        outdir=results_dir,
-    )
-
-    report_data = {
-        "final_loss": loss_history[-1],
-        "train_accuracy": train_acc,
-        "test_accuracy": test_acc,
-        "duration": duration,
-        "x_train": x_train.detach().numpy().tolist(),
-        "train_predictions": train_preds,
-        "x_test": x_train.detach().numpy().tolist(),
-        "test_predictions": test_preds,
-    }
-
-    with open(os.path.join(results_dir, f"report_data.json"), "w") as file:
-        json.dump(report_data, file, indent=4)
+    args = vars(parser.parse_args())
+    main(**args)
