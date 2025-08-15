@@ -11,7 +11,13 @@ report.pdf
 **/*.egg-info/
 **/*.egg
 credentials.db
-data/universal_approximant/params/
 .secrets.toml
 notes.md
 .github/*
+
+data/universal_approximant/params/*
+data/process_tomography/matrices/*
+data/reuploading/*
+data/process_tomography/numpy/matrices/*
+data/reuploading_classifier/params/*
+data/process_tomography/numpy/matrices/*
