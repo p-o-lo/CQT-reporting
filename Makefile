@@ -1,13 +1,13 @@
 TARGET = report.pdf
 
-.PHONY: build clean pdf runscripts
+.PHONY: build clean pdf runscripts runscripts-device
 
 # Default experiment directory
 EXPERIMENT_DIR ?= rb-1306
 
 build: clean
 	@echo "Building latex report..."
-	python src/main.py --experiment-dir $(EXPERIMENT_DIR)
+	python src/main.py --experiment-left $(EXPERIMENT_DIR) --experiment-right BASELINE
 
 pdf: build
 	@mkdir -p build
@@ -17,10 +17,14 @@ pdf: build
 
 clean:
 	@echo "Cleaning build directory..."
-	@rm -f build/* 
+	@rm -f build/*
 
 runscripts:
 	@echo "Running scripts..."
 	python3 scripts/runscripts.py
+
+runscripts-device:
+	@echo "Running scripts with device=nqch..."
+	python3 scripts/runscripts.py --device nqch
 
 all: pdf
