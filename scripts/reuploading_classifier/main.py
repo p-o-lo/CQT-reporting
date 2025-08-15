@@ -199,7 +199,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--device",
-        choices=["numpy", "nqch"],
+        choices=["numpy", "nqch-sim", "sinq20"],
         default="numpy",
         help="Device to use (default: numpy)",
     )
