@@ -292,10 +292,44 @@ def mermin_plot_5q(raw_data, output_path="build/"):
     with open(raw_data) as r:
         raw = json.load(r)
 
-    x = np.array(raw["x"])
-    y = np.array(raw["y"])
+    # Support both list and dict formats
+    x_raw = raw.get("x", {})
+    y_raw = raw.get("y", {})
 
-    plt.plot(x / np.pi * 180, y)
+    series = []
+    if isinstance(x_raw, dict) and isinstance(y_raw, dict):
+        # Collect common keys and build series list
+        for k in y_raw.keys():
+            if k in x_raw and isinstance(x_raw[k], list) and isinstance(y_raw[k], list):
+                try:
+                    xs = np.array(x_raw[k], dtype=float)
+                    ys = np.array(y_raw[k], dtype=float)
+                    series.append((k, xs, ys))
+                except Exception:
+                    continue
+    else:
+        # Fallback to simple list arrays
+        try:
+            xs = np.array(x_raw, dtype=float)
+            ys = np.array(y_raw, dtype=float)
+            series.append(("series", xs, ys))
+        except Exception:
+            series = []
+
+    if not series:
+        raise ValueError(f"No valid Mermin data to plot from {raw_data}")
+
+    os.makedirs(output_path, exist_ok=True)
+    plt.figure()
+
+    # Plot all series and track global max
+    global_max = None
+    for label, xs, ys in series:
+        plt.plot(xs / np.pi * 180.0, ys, label=label if len(series) > 1 else None)
+        candidate = ys[np.nanargmax(np.abs(ys))]
+        if global_max is None or np.abs(candidate) > np.abs(global_max):
+            global_max = candidate
+
     plt.axhline(4, color="k", linestyle="dashed", label="Local Realism Bound")
     plt.axhline(-4, color="k", linestyle="dashed")
     plt.axhline(16, color="red", linestyle="dashed", label="Quantum Bound")
@@ -304,17 +338,16 @@ def mermin_plot_5q(raw_data, output_path="build/"):
     plt.xlabel(r"$\theta$ [degrees]")
     plt.ylabel("Result")
     plt.grid()
-    plt.legend()
-    plt.title(f"Mermin Inequality [5Q]\nMax: {y[np.abs(y).argmax()]}")
+    if len(series) > 1:
+        plt.legend()
+    plt.title(f"Mermin Inequality [5Q]\nMax: {global_max}")
     plt.tight_layout()
 
-    filename = f"mermin_5q.png"
+    filename = "mermin_5q.png"
     full_path = os.path.join(output_path, filename)
     plt.savefig(full_path)
     plt.close()
     return full_path
-    # plt.savefig("mermin_5q.png", dpi=300)
-    # plt.show()
 
 
 def plot_reuploading(x, target, predictions=None, err=None, title="plot", outdir="."):
@@ -364,12 +397,12 @@ def plot_reuploading(x, target, predictions=None, err=None, title="plot", outdir
     return os.path.join(outdir, f"{title}.pdf")
 
 
-def plot_grover(data_json, output_path="build/"):
+def plot_grover(raw_data, output_path="build/"):
     """
     Plot Grover's algorithm results as a histogram of measured bitstrings.
     """
     # Load data from JSON file
-    with open(data_json, "r") as f:
+    with open(raw_data, "r") as f:
         data = json.load(f)
 
     # Extract frequencies for the first (and only) key in 'frequencies'
@@ -394,14 +427,14 @@ def plot_grover(data_json, output_path="build/"):
     return out_file
 
 
-def plot_ghz(data_json, output_path="build/"):
+def plot_ghz(raw_data, output_path="build/"):
     """
     Plot GHZ results as a histogram of measured bitstrings.
     Expects a JSON with keys:
       - success_rate
       - plotparameters: { frequencies: { <bitstring>: count, ... } }
     """
-    with open(data_json, "r") as f:
+    with open(raw_data, "r") as f:
         data = json.load(f)
 
     freq_dict = data.get("plotparameters", {}).get("frequencies", {})
@@ -426,3 +459,48 @@ def plot_ghz(data_json, output_path="build/"):
     plt.savefig(out_file)
     plt.close()
     return out_file
+
+
+def do_plot_reuploading(raw_data):
+    """
+    Generate reuploading plots for each epoch and a final summary plot using data from the results JSON file.
+
+    Args:
+        results_file (str): Path to the JSON file containing reuploading results.
+    """
+    with open(raw_data, "r") as f:
+        results = json.load(f)
+
+    output_dir = os.path.dirname(raw_data)
+
+    # Generate a plot for each epoch
+    for epoch_data in results["epoch_data"]:
+        epoch = epoch_data["epoch"]
+        x_train = np.array(epoch_data["x_train"])
+        y_train = np.array(epoch_data["y_train"])
+        predictions = np.array(epoch_data["predictions"])
+
+        plot_reuploading(
+            x=x_train,
+            target=y_train,
+            predictions=predictions,
+            title=f"epoch_{epoch:03d}",
+            outdir=output_dir,
+        )
+
+    # Generate the final summary plot
+    x_train = np.array(results["epoch_data"][-1]["x_train"])
+    y_train = np.array(results["epoch_data"][-1]["y_train"])
+    median_pred = np.array(results["median_predictions"])
+    mad_pred = np.array(results["mad_predictions"])
+
+    plot_reuploading(
+        x=x_train,
+        target=y_train,
+        predictions=median_pred,
+        err=mad_pred,
+        title="final_plot",
+        outdir=output_dir,
+    )
+
+    return os.path.join(output_dir, "final_plot.pdf")

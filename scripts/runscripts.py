@@ -65,13 +65,13 @@ def setup_logger(log_file: str, level_name: str) -> logging.Logger:
 
 # List of subfolders containing main.py
 subfolders = [
-    "GHZ",
-    "mermin",
+    # "GHZ",
+    # "mermin",
     "grover2q",
-    "tomography",
-    "reuploading",
-    "universal_approximant",
-    "process_tomography",
+    # "tomography",
+    # "reuploading",
+    # "universal_approximant",
+    # "process_tomography",
 ]
 
 # Base path to the scripts directory (run from project root)

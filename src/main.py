@@ -23,63 +23,55 @@ def setup_argument_parser():
     """Set up the command line argument parser."""
     parser = argparse.ArgumentParser(description="Generate a quantum benchmark report.")
     parser.add_argument(
-        "--experiment-dir",
+        "--experiment-left",
         type=str,
         default="rb-1306",
         help="Directory containing the experiment data.",
     )
     parser.add_argument(
-        "--experiment-dir-baseline",
+        "--experiment-right",
         type=str,
         default="BASELINE",
         help="Directory containing the experiment data.",
     )
-    return parser
-
-
-def do_plot_reuploading(results_file):
-    """
-    Generate reuploading plots for each epoch and a final summary plot using data from the results JSON file.
-
-    Args:
-        results_file (str): Path to the JSON file containing reuploading results.
-    """
-    with open(results_file, "r") as f:
-        results = json.load(f)
-
-    output_dir = os.path.dirname(results_file)
-
-    # Generate a plot for each epoch
-    for epoch_data in results["epoch_data"]:
-        epoch = epoch_data["epoch"]
-        x_train = np.array(epoch_data["x_train"])
-        y_train = np.array(epoch_data["y_train"])
-        predictions = np.array(epoch_data["predictions"])
-
-        pl.plot_reuploading(
-            x=x_train,
-            target=y_train,
-            predictions=predictions,
-            title=f"epoch_{epoch:03d}",
-            outdir=output_dir,
-        )
-
-    # Generate the final summary plot
-    x_train = np.array(results["epoch_data"][-1]["x_train"])
-    y_train = np.array(results["epoch_data"][-1]["y_train"])
-    median_pred = np.array(results["median_predictions"])
-    mad_pred = np.array(results["mad_predictions"])
-
-    pl.plot_reuploading(
-        x=x_train,
-        target=y_train,
-        predictions=median_pred,
-        err=mad_pred,
-        title="final_plot",
-        outdir=output_dir,
+    parser.add_argument(
+        "--data-right",
+        type=str,
+        default="numpy",
+        help="Directory containing the experiment data.",
+    )
+    parser.add_argument(
+        "--data-left",
+        type=str,
+        default="nqch",
+        help="Directory containing the experiment data.",
     )
 
-    return os.path.join(output_dir, "final_plot.pdf")
+    # Plot toggles (default: True). Use --no-<flag> to disable.
+    parser.add_argument("--t1-plot", dest="t1_plot", action="store_true", default=True)
+    parser.add_argument("--no-t1-plot", dest="t1_plot", action="store_false")
+    parser.add_argument(
+        "--mermin-5-plot", dest="mermin_5_plot", action="store_true", default=True
+    )
+    parser.add_argument(
+        "--no-mermin-5-plot", dest="mermin_5_plot", action="store_false"
+    )
+    parser.add_argument(
+        "--reuploading-plot", dest="reuploading_plot", action="store_true", default=True
+    )
+    parser.add_argument(
+        "--no-reuploading-plot", dest="reuploading_plot", action="store_false"
+    )
+    parser.add_argument(
+        "--grover-plot", dest="grover_plot", action="store_true", default=True
+    )
+    parser.add_argument("--no-grover-plot", dest="grover_plot", action="store_false")
+    parser.add_argument(
+        "--ghz-plot", dest="ghz_plot", action="store_true", default=True
+    )
+    parser.add_argument("--no-ghz-plot", dest="ghz_plot", action="store_false")
+
+    return parser
 
 
 def add_stat_changes(current, baseline):
@@ -124,24 +116,22 @@ def prepare_template_context(args):
     logging.info("Preparing context for full benchmarking report.")
 
     # Load experiment metadata from mega.json
-    meta_json_path = Path("data") / args.experiment_dir / "meta.json"
+    meta_json_path = Path("data") / args.experiment_left / "meta.json"
     with open(meta_json_path, "r") as f:
         meta_data = json.load(f)
     logging.info("Loaded experiment metadata from %s", meta_json_path)
 
-    # Fidelity statistics and changes
-    stat_fidelity = fl.get_stat_fidelity(args.experiment_dir)
-    stat_fidelity_baseline = fl.get_stat_fidelity(args.experiment_dir_baseline)
+    ######### Fidelity statistics and changes
+    stat_fidelity = fl.get_stat_fidelity(args.experiment_left)
+    stat_fidelity_baseline = fl.get_stat_fidelity(args.experiment_right)
     stat_fidelity_with_improvement = add_stat_changes(
         stat_fidelity, stat_fidelity_baseline
     )
     logging.info("Prepared stat_fidelity and stat_fidelity_with_improvement")
 
-    # Pulse Fidelity statistics and changes
-    stat_pulse_fidelity = fl.get_stat_pulse_fidelity(args.experiment_dir)
-    stat_pulse_fidelity_baseline = fl.get_stat_pulse_fidelity(
-        args.experiment_dir_baseline
-    )
+    ##########Pulse Fidelity statistics and changes
+    stat_pulse_fidelity = fl.get_stat_pulse_fidelity(args.experiment_left)
+    stat_pulse_fidelity_baseline = fl.get_stat_pulse_fidelity(args.experiment_right)
     stat_pulse_fidelity_with_improvement = add_stat_changes(
         stat_pulse_fidelity, stat_pulse_fidelity_baseline
     )
@@ -149,15 +139,15 @@ def prepare_template_context(args):
         "Prepared stat_pulse_fidelity and stat_pulse_fidelity_with_improvement"
     )
 
-    # T1 statistics and changes
-    stat_t1 = fl.get_stat_t12(args.experiment_dir, "t1")
-    stat_t1_baseline = fl.get_stat_t12(args.experiment_dir_baseline, "t1")
+    ######### T1 statistics and changes
+    stat_t1 = fl.get_stat_t12(args.experiment_left, "t1")
+    stat_t1_baseline = fl.get_stat_t12(args.experiment_right, "t1")
     stat_t1_with_improvement = add_stat_changes(stat_t1, stat_t1_baseline)
     logging.info("Prepared stat_t1 and stat_t1_with_improvement")
 
-    # T2 statistics and changes
-    stat_t2 = fl.get_stat_t12(args.experiment_dir, "t2")
-    stat_t2_baseline = fl.get_stat_t12(args.experiment_dir_baseline, "t2")
+    ######### T2 statistics and changes
+    stat_t2 = fl.get_stat_t12(args.experiment_left, "t2")
+    stat_t2_baseline = fl.get_stat_t12(args.experiment_right, "t2")
     stat_t2_with_improvement = add_stat_changes(stat_t2, stat_t2_baseline)
     logging.info("Prepared stat_t2 and stat_t2_with_improvement")
 
@@ -185,14 +175,14 @@ def prepare_template_context(args):
         "new_version": fl.context_new_version(args, meta_data),
         "control_version": fl.context_control_version(args),
         #
-        "new_fidelity": fl.context_fidelity(args.experiment_dir),
-        "control_fidelity": fl.context_fidelity(args.experiment_dir_baseline),
+        "new_fidelity": fl.context_fidelity(args.experiment_left),
+        "control_fidelity": fl.context_fidelity(args.experiment_right),
         #
         "plot_exp": pl.plot_fidelity_graph(
-            args.experiment_dir, config.connectivity, config.pos
+            args.experiment_left, config.connectivity, config.pos
         ),
         "plot_baseline": pl.plot_fidelity_graph(
-            args.experiment_dir_baseline, config.connectivity, config.pos
+            args.experiment_right, config.connectivity, config.pos
         ),
         #
         "plot_chevron_swap_0": pl.plot_chevron_swap_coupler(
@@ -209,90 +199,117 @@ def prepare_template_context(args):
     }
     logging.info("Basic context dictionary prepared")
 
-    # Add additional plots if needed
-    context["grid_coupler_is_set"] = False
-    grid_coupler_plots = pl.prepare_grid_coupler(
-        max_number=2,
-        data_dir="data/DEMODATA",
-        baseline_dir="data/DEMODATA",
-        output_path="build/",
-    )
-    context["plot_grid_coupler"] = grid_coupler_plots
-    logging.info("Added grid_coupler plots to context")
+    # # Add additional plots if needed
+    # context["grid_coupler_is_set"] = False
+    # grid_coupler_plots = pl.prepare_grid_coupler(
+    #     max_number=2,
+    #     data_dir="data/DEMODATA",
+    #     baseline_dir="data/DEMODATA",
+    #     output_path="build/",
+    # )
+    # context["plot_grid_coupler"] = grid_coupler_plots
+    # logging.info("Added grid_coupler plots to context")
 
-    # Add additional chevron_swap_coupler plots if needed
-    context["chevron_swap_coupler_is_set"] = False
-    chevron_swap_coupler_plots = pl.prepare_grid_chevron_swap_coupler(
-        max_number=2,
-        data_dir="data/DEMODATA",
-        baseline_dir="data/DEMODATA",
-        output_path="build/",
-    )
-    context["plot_chevron_swap_coupler"] = chevron_swap_coupler_plots
-    logging.info("Added chevron_swap_coupler plots to context")
+    # # Add additional chevron_swap_coupler plots if needed
+    # context["chevron_swap_coupler_is_set"] = False
+    # chevron_swap_coupler_plots = pl.prepare_grid_chevron_swap_coupler(
+    #     max_number=2,
+    #     data_dir="data/DEMODATA",
+    #     baseline_dir="data/DEMODATA",
+    #     output_path="build/",
+    # )
+    # context["plot_chevron_swap_coupler"] = chevron_swap_coupler_plots
+    # logging.info("Added chevron_swap_coupler plots to context")
 
-    context["t1_plot_is_set"] = True
-    t1_plot = pl.prepare_grid_t1_plts(
-        max_number=2,
-        data_dir="data/DEMODATA",
-        output_path="build/",
-    )
-    context["plot_grid_t1"] = t1_plot
-    logging.info("Added T1 plots to context")
+    # ######### T1 PLOT
+    if args.t1_plot == True:
+        context["t1_plot_is_set"] = True
+        t1_plot = pl.prepare_grid_t1_plts(
+            max_number=2,
+            data_dir="data/DEMODATA",
+            output_path="build/",
+        )
+        context["plot_grid_t1"] = t1_plot
+        logging.info("Added T1 plots to context")
+    else:
+        context["t1_plot_is_set"] = False
+        pass
 
-    # MERMIN TABLE
-    maximum_mermin = fl.get_maximum_mermin("data/mermin", "mermin_5q.json")
-    maximum_mermin_baseline = fl.get_maximum_mermin("data/mermin", "mermin_5q.json")
+    path = Path("data/")
+
+    ######### MERMIN TABLE
+    maximum_mermin = fl.get_maximum_mermin(
+        path / "mermin" / args.data_left, "results.json"
+    )
+    maximum_mermin_baseline = fl.get_maximum_mermin(
+        path / "mermin" / args.data_right, "results.json"
+    )
     context["mermin_maximum"] = maximum_mermin
     context["mermin_maximum_baseline"] = maximum_mermin_baseline
 
-    # MERMIN PLOTS
-    context["mermin_5_plot_is_set"] = True
-    mermin_5_plot_baseline = pl.mermin_plot_5q(
-        raw_data="data/mermin/mermin_5q_baseline.json",
-        output_path="build/",
-    )
-    mermin_5_plot = pl.mermin_plot_5q(
-        raw_data="data/mermin/mermin_5q.json",
-        output_path="build/",
-    )
-    context["plot_mermin_baseline"] = mermin_5_plot_baseline
-    context["plot_mermin"] = mermin_5_plot
-    logging.info("Added Mermin 5Q plots to context")
+    ######### MERMIN PLOTS
+    if args.mermin_5_plot == True:
+        context["mermin_5_plot_is_set"] = True
+        context["plot_mermin"] = pl.mermin_plot_5q(
+            raw_data=os.path.join("data", "mermin", args.data_left, "results.json"),
+            output_path="build/",
+        )
+        context["plot_mermin_baseline"] = mermin_5_plot_baseline = pl.mermin_plot_5q(
+            raw_data=os.path.join("data", "mermin", args.data_right, "results.json"),
+            output_path="build/",
+        )
+        logging.info("Added Mermin 5Q plots to context")
+    else:
+        context["mermin_5_plot_is_set"] = False
+        pass
 
-    # REUPLOADING PLOTS
-    context["reuploading_plot_is_set"] = True
-    context["plot_reuploading"] = do_plot_reuploading(
-        "data/reuploading/results_reuploading.json"
-    )
-    context["plot_reuploading_baseline"] = do_plot_reuploading(
-        "data/reuploading/results_reuploading.json"
-    )
-    logging.info("Added reuploading plots to context")
+    ######### REUPLOADING PLOTS
+    if args.reuploading_plot == True:
+        context["reuploading_plot_is_set"] = True
+        context["plot_reuploading"] = pl.do_plot_reuploading(
+            raw_data=os.path.join("data", "reuploading", args.data_left, "results.json")
+        )
+        context["plot_reuploading_baseline"] = pl.do_plot_reuploading(
+            raw_data=os.path.join(
+                "data", "reuploading", args.data_right, "results.json"
+            )
+        )
+        logging.info("Added reuploading plots to context")
+    else:
+        context["reuploading_plot_is_set"] = False
+        pass
 
-    # GROVER PLOTS
-    context["grover_plot_is_set"] = True
-    context["plot_grover2q"] = pl.plot_grover(
-        "data/grover2q/results.json",
-        output_path="build/",
-    )
-    context["plot_grover2q_baseline"] = pl.plot_grover(
-        "data/grover2q/results.json",
-        output_path="build/",
-    )
-    logging.info("Added Grover 2Q plots to context")
+    ######### GROVER PLOTS
+    if args.grover_plot == True:
+        context["grover_plot_is_set"] = True
+        context["plot_grover2q"] = pl.plot_grover(
+            raw_data=os.path.join("data", "grover2q", args.data_left, "results.json"),
+            output_path="build/",
+        )
+        context["plot_grover2q_baseline"] = pl.plot_grover(
+            raw_data=os.path.join("data", "grover2q", args.data_right, "results.json"),
+            output_path="build/",
+        )
+        logging.info("Added Grover 2Q plots to context")
+    else:
+        context["grover_plot_is_set"] = False
+        pass
 
-    # GHZ PLOTS
-    context["ghz_plot_is_set"] = True
-    context["plot_ghz"] = pl.plot_ghz(
-        "data/ghz/ghz_5q_samples.json",
-        output_path="build/",
-    )
-    context["plot_ghz_baseline"] = pl.plot_ghz(
-        "data/ghz/ghz_5q_samples.json",
-        output_path="build/",
-    )
-    logging.info("Added GHZ plots to context")
+    ######### GHZ PLOTS
+    if args.ghz_plot == True:
+        context["ghz_plot_is_set"] = True
+        context["plot_ghz"] = pl.plot_ghz(
+            raw_data=os.path.join("data", "ghz", args.data_left, "results.json"),
+            output_path="build/",
+        )
+        context["plot_ghz_baseline"] = pl.plot_ghz(
+            raw_data=os.path.join("data", "ghz", args.data_right, "results.json"),
+            output_path="build/",
+        )
+        logging.info("Added GHZ plots to context")
+    else:
+        context["ghz_plot_is_set"] = False
+        pass
 
     return context
 
@@ -343,9 +360,9 @@ def main():
     # Step 2: Load and validate experiment data (dummy call for now, can be removed if not needed for experiment_name)
     # For simplicity, we are not loading actual experiment data as per the request
     # to only show library versions.
-    # If experiment_dir is purely for the title, this can be simplified further.
+    # If experiment_left is purely for the title, this can be simplified further.
     logging.info(
-        f"Targeting experiment directory for report title: {args.experiment_dir}"
+        f"Targeting experiment directory for report title: {args.experiment_left}"
     )
 
     # Step 3: Prepare template context with all required data

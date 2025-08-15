@@ -36,18 +36,46 @@ def context_plot_1(exp_name):
 
 def get_maximum_mermin(experiment_dir, filename):
     """
-    Extracts the maximum value from the Mermin results JSON file.
+    Extracts the maximum absolute value from the Mermin results JSON file.
+    Supports formats:
+      - {"y": {"[0, 1, 2]": [..], ...}}
+      - {"y": [..]}
     """
     results_json_path = Path(experiment_dir) / filename
     with open(results_json_path, "r") as f:
         results = json.load(f)
 
-    # Extract the 'y' values and find the maximum
-    y_values = results.get("y", [])
-    if not y_values:
+    y_data = results.get("y")
+    if y_data is None:
         return None
 
-    max_value = np.nanmax(np.abs(np.array(y_values)))
+    series = []
+    if isinstance(y_data, dict):
+        # Collect all lists of y-values from the dict
+        for vals in y_data.values():
+            if isinstance(vals, list):
+                series.extend(vals)
+    elif isinstance(y_data, list):
+        series = y_data
+
+    if not series:
+        return None
+
+    try:
+        arr = np.asarray(series, dtype=float)
+    except Exception as e:
+        print(f"Error converting value {v}: {e}")
+        # Fallback: attempt to coerce element-wise
+        cleaned = []
+        for v in series:
+            try:
+                cleaned.append(float(v))
+            except Exception as e:
+                print(f"Error converting value {v}: {e}")
+                cleaned.append(np.nan)
+        arr = np.asarray(cleaned, dtype=float)
+
+    max_value = np.nanmax(np.abs(arr))
     return max_value
 
 
@@ -57,7 +85,7 @@ def context_new_version(args, meta_data):
     """
     return {
         "versions": meta_data.get("versions", {}),
-        "runcard": meta_data.get("runcard", args.experiment_dir),
+        "runcard": meta_data.get("runcard", args.experiment_left),
         "runcard_link": meta_data.get("runcard_link", "https://link-to-runcard.com"),
     }
 
@@ -66,12 +94,12 @@ def context_control_version(args):
     """
     Get the control version of the libraries used in the benchmarking suite.
     """
-    meta_json_path = Path("data") / args.experiment_dir_baseline / "meta.json"
+    meta_json_path = Path("data") / args.experiment_right / "meta.json"
     with open(meta_json_path, "r") as f:
         meta_data = json.load(f)
     return {
         "versions": meta_data.get("versions", {}),
-        "runcard": meta_data.get("runcard", args.experiment_dir_baseline),
+        "runcard": meta_data.get("runcard", args.experiment_right),
         "runcard_link": meta_data.get("runcard_link", "https://link-to-runcard.com"),
     }
 
