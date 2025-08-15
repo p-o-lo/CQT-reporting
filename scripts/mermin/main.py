@@ -121,7 +121,13 @@ if __name__ == "__main__":
         type=list,
         help="Target qubits list",
     )
-    parser.add_argument("--device", choices=["numpy", "nqch"], default="numpy", type=str, help="Device to use")
+    parser.add_argument(
+        "--device",
+        choices=["numpy", "nqch-sim", "sinq20"],
+        default="numpy",
+        type=str,
+        help="Device to use",
+    )
     parser.add_argument(
         "--nshots",
         default=1000,

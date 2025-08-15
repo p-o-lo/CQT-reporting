@@ -700,7 +700,10 @@ def compute_noisy_and_noiseless_PTM(gjk=None, O_tilde=None, O_gate=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--device", choices=["numpy", "nqch"], default="numpy", help="Execution device"
+        "--device",
+        choices=["numpy", "nqch-sim", "sinq20"],
+        default="numpy",
+        help="Execution device",
     )
     parser.add_argument("--nshots", type=int, default=int(1e4), help="Number of shots")
     args = parser.parse_args()

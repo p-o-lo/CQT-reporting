@@ -36,7 +36,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--nqubits", type=int, default=5)
     parser.add_argument("--nshots", type=int, default=1000)
-    parser.add_argument("--device", choices=["numpy", "nqch"], default="numpy")
+    parser.add_argument(
+        "--device", choices=["numpy", "nqch-sim", "sinq20"], default="numpy"
+    )
     args = parser.parse_args()
 
     if args.device == "numpy":

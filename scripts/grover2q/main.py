@@ -94,10 +94,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--device",
-        choices=["numpy", "nqch"],
+        choices=["numpy", "nqch-sim", "sinq20"],
         default="numpy",
         type=str,
-        help="Device to use (e.g., 'nqch' or 'numpy' for local simulation)",
+        help="Device to use (numpy, nqch-sim, or sinq20)",
     )
     parser.add_argument(
         "--nshots",

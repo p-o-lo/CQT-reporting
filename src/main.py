@@ -43,7 +43,7 @@ def setup_argument_parser():
     parser.add_argument(
         "--data-left",
         type=str,
-        default="nqch",
+        default="nqch-sim",
         help="Directory containing the experiment data.",
     )
 
