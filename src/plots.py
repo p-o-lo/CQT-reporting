@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import networkx as nx
 import numpy as np
 from matplotlib.colors import BoundaryNorm
@@ -292,10 +293,44 @@ def mermin_plot_5q(raw_data, output_path="build/"):
     with open(raw_data) as r:
         raw = json.load(r)
 
-    x = np.array(raw["x"])
-    y = np.array(raw["y"])
+    # Support both list and dict formats
+    x_raw = raw.get("x", {})
+    y_raw = raw.get("y", {})
 
-    plt.plot(x / np.pi * 180, y)
+    series = []
+    if isinstance(x_raw, dict) and isinstance(y_raw, dict):
+        # Collect common keys and build series list
+        for k in y_raw.keys():
+            if k in x_raw and isinstance(x_raw[k], list) and isinstance(y_raw[k], list):
+                try:
+                    xs = np.array(x_raw[k], dtype=float)
+                    ys = np.array(y_raw[k], dtype=float)
+                    series.append((k, xs, ys))
+                except Exception:
+                    continue
+    else:
+        # Fallback to simple list arrays
+        try:
+            xs = np.array(x_raw, dtype=float)
+            ys = np.array(y_raw, dtype=float)
+            series.append(("series", xs, ys))
+        except Exception:
+            series = []
+
+    if not series:
+        raise ValueError(f"No valid Mermin data to plot from {raw_data}")
+
+    os.makedirs(output_path, exist_ok=True)
+    plt.figure()
+
+    # Plot all series and track global max
+    global_max = None
+    for label, xs, ys in series:
+        plt.plot(xs / np.pi * 180.0, ys, label=label if len(series) > 1 else None)
+        candidate = ys[np.nanargmax(np.abs(ys))]
+        if global_max is None or np.abs(candidate) > np.abs(global_max):
+            global_max = candidate
+
     plt.axhline(4, color="k", linestyle="dashed", label="Local Realism Bound")
     plt.axhline(-4, color="k", linestyle="dashed")
     plt.axhline(16, color="red", linestyle="dashed", label="Quantum Bound")
@@ -304,17 +339,16 @@ def mermin_plot_5q(raw_data, output_path="build/"):
     plt.xlabel(r"$\theta$ [degrees]")
     plt.ylabel("Result")
     plt.grid()
-    plt.legend()
-    plt.title(f"Mermin Inequality [5Q]\nMax: {y[np.abs(y).argmax()]}")
+    if len(series) > 1:
+        plt.legend()
+    plt.title(f"Mermin Inequality [5Q]\nMax: {global_max}")
     plt.tight_layout()
 
-    filename = f"mermin_5q.png"
+    filename = "mermin_5q.png"
     full_path = os.path.join(output_path, filename)
     plt.savefig(full_path)
     plt.close()
     return full_path
-    # plt.savefig("mermin_5q.png", dpi=300)
-    # plt.show()
 
 
 def plot_reuploading(x, target, predictions=None, err=None, title="plot", outdir="."):
@@ -364,12 +398,12 @@ def plot_reuploading(x, target, predictions=None, err=None, title="plot", outdir
     return os.path.join(outdir, f"{title}.pdf")
 
 
-def plot_grover(data_json, output_path="build/"):
+def plot_grover(raw_data, output_path="build/"):
     """
     Plot Grover's algorithm results as a histogram of measured bitstrings.
     """
     # Load data from JSON file
-    with open(data_json, "r") as f:
+    with open(raw_data, "r") as f:
         data = json.load(f)
 
     # Extract frequencies for the first (and only) key in 'frequencies'
@@ -394,14 +428,14 @@ def plot_grover(data_json, output_path="build/"):
     return out_file
 
 
-def plot_ghz(data_json, output_path="build/"):
+def plot_ghz(raw_data, output_path="build/"):
     """
     Plot GHZ results as a histogram of measured bitstrings.
     Expects a JSON with keys:
       - success_rate
       - plotparameters: { frequencies: { <bitstring>: count, ... } }
     """
-    with open(data_json, "r") as f:
+    with open(raw_data, "r") as f:
         data = json.load(f)
 
     freq_dict = data.get("plotparameters", {}).get("frequencies", {})
@@ -426,3 +460,61 @@ def plot_ghz(data_json, output_path="build/"):
     plt.savefig(out_file)
     plt.close()
     return out_file
+
+
+def plot_reuploading_classifier(raw_data, output_path="build/"):
+    # Retrieve relevant data
+
+    with open(raw_data, "r") as f:
+        data_json = json.load(f)
+
+    train_x = np.array(data_json["x_train"])
+    train_y = np.array(data_json["train_predictions"])
+    test_x = np.array(data_json["x_test"])
+    test_y = np.array(data_json["test_predictions"])
+    loss_history = data_json["loss_history"]
+
+    fig = plt.figure(figsize=(8, 6), dpi=120)
+    gs = fig.add_gridspec(2, 2, height_ratios=[2, 1])  # 2 rows, 2 columns
+
+    # Train plot (top-left)
+    ax_train = fig.add_subplot(gs[0, 0])
+    for label in np.unique(train_y):
+        data_label = np.transpose(train_x[np.where(train_y == label)])
+        ax_train.scatter(data_label[0], data_label[1])
+    ax_train.set_title("Train predictions")
+    ax_train.set_xlabel(r"$x$")
+    ax_train.set_ylabel(r"$y$")
+    circle_train = plt.Circle(
+        (0, 0), np.sqrt(2 / np.pi), edgecolor="k", linestyle="--", fill=False
+    )
+    ax_train.add_patch(circle_train)
+
+    # Test plot (top-right)
+    ax_test = fig.add_subplot(gs[0, 1])
+    for label in np.unique(test_y):
+        data_label = np.transpose(test_x[np.where(test_y == label)])
+        ax_test.scatter(data_label[0], data_label[1])
+    ax_test.set_title("Test predictions")
+    ax_test.set_xlabel(r"$x$")
+    ax_test.set_ylabel(r"$y$")
+    circle_test = plt.Circle(
+        (0, 0), np.sqrt(2 / np.pi), edgecolor="k", linestyle="--", fill=False
+    )
+    ax_test.add_patch(circle_test)
+
+    # Loss plot (bottom row spanning both columns)
+    ax_loss = fig.add_subplot(gs[1, :])
+    ax_loss.plot(loss_history)
+    ax_loss.set_title("Loss plot")
+    ax_loss.set_xlabel(r"$Iteration$")
+    ax_loss.set_ylabel(r"$Loss$")
+
+    plt.tight_layout()
+    os.makedirs(output_path, exist_ok=True)
+    fig.savefig(
+        os.path.join(output_path, "reuploading_classifier_results.pdf"),
+        bbox_inches="tight",
+        dpi=300,
+    )
+    plt.close(fig)
