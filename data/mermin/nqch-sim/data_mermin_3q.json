@@ -1,0 +1,12 @@
+{
+    "qubit_list": [
+        [
+            0,
+            1,
+            2
+        ]
+    ],
+    "nqubits": 3,
+    "nshots": 1000,
+    "device": "nqch-sim"
+}

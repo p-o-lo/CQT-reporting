@@ -1,0 +1,11 @@
+{
+    "qubit_pairs": [
+        [
+            0,
+            1
+        ]
+    ],
+    "nshots": 1000,
+    "device": "numpy",
+    "target": "11"
+}

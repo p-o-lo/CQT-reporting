@@ -51,7 +51,11 @@ if __name__ == "__main__":
         description="Train a small quantum model on a sin^2 function."
     )
     parser.add_argument(
-        "--backend", type=str, default="numpy", help="Backend to use (default: numpy)"
+        "--device",
+        type=str,
+        default="numpy",
+        choices=["numpy", "nqch-sim", "sinq20"],
+        help="Device to use: numpy, nqch-sim, or sinq20 (default: numpy)",
     )
     parser.add_argument(
         "--nqubits", type=int, default=1, help="Number of qubits (default: 1)"
@@ -77,6 +81,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    backend_str = args.device
+
     # Generate training data
     x_train = torch.linspace(
         0, 2 * np.pi, args.num_samples, dtype=torch.float64
@@ -85,7 +91,7 @@ if __name__ == "__main__":
     y_train = 2 * (((y_train - y_train.min()) / (y_train.max() - y_train.min())) - 0.5)
 
     # Set up backend
-    backend = construct_backend(args.backend)
+    backend = construct_backend(backend_str)
 
     # Set up transpiler
     glist = [gates.GPI2, gates.RZ, gates.Z, gates.CZ]
@@ -96,7 +102,7 @@ if __name__ == "__main__":
 
     # Set up directories
     backend_name = backend.name.lower().replace(" ", "_")
-    results_dir = os.path.join("data", f"universal_approximant/")
+    results_dir = os.path.join("data", "universal_approximant/")
     params_dir = os.path.join(results_dir, "params")
     os.makedirs(params_dir, exist_ok=True)
 
