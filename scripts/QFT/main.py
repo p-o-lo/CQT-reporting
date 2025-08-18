@@ -9,31 +9,48 @@ def QFT(qubits_list, device, nshosts, via_client, client):
     
     result = None
     n_qubits = len(qubits_list)
-        
+    total_qubits = int(np.max(qubits_list) + 1)
+    
     # QFT on local sim
     if not via_client:
-        total_qubits = int(np.max(qubits_list) + 1)
-    # QFT on remote QPU
+        circuit = qibo.Circuit(total_qubits)
+    # QFT remotely on QPU
     if via_client:
-        total_qubits = 20
+        circuit = qibo.Circuit(20)
     
+    ## Circuit Definition
+    # Add Hadamard at the beginning
+    for q in qubits_list:
+        circuit.add(qibo.gates.H(q)) 
     # QFT
-    circuit = qibo.Circuit(total_qubits)
-    for k in range(n_qubits):
-        qk = qubits_list[k]
-        circuit.add(qibo.gates.H(qk))
-        for j in range(k + 1, n_qubits):
-            qj = qubits_list[j]
-            theta = np.pi / (2 ** (j - k))
-            circuit.add(qibo.gates.CU1(qk, qj, theta))
-
+    qft_circuit = qibo.models.QFT(n_qubits, with_swaps=False)
+    circuit.add(qft_circuit.on_qubits(*qubits_list))
+    
     # Add measurement
-    for q in range(total_qubits):
+    for q in qubits_list:
         circuit.add(qibo.gates.M(q))
+            
+    # QFT on remote QPU
+    # if via_client:
+    #     total_qubits = 20
 
-    # Run on local sim
+    # # QFT
+    # circuit = qibo.Circuit(total_qubits)
+    # for k in range(n_qubits):
+    #     qk = qubits_list[k]
+    #     # circuit.add(qibo.gates.H(qk))
+    #     for j in range(k + 1, n_qubits):
+    #         qj = qubits_list[j]
+    #         theta = np.pi / (2 ** (j - k))
+    #         circuit.add(qibo.gates.CU1(qk, qj, theta))
+
+    # # Run on local sim
+    # if not via_client:
+    #     result = circuit(nshots=nshosts)
+    
+    # Run locally
     if not via_client:
-        result = circuit(nshots=nshosts)
+        result = circuit(nshosts=nshosts)
     
     # Run on remote QPU
     if via_client:
@@ -64,21 +81,24 @@ def main(qubits_list, device, nshots, via_client):
     data["nshots"] = nshots
     data["device"] = device
 
+    # total_qubits = int(np.max(qubits_list) + 1)
+
     # On local simulator
-    if not via_client:
-        total_qubits = int(np.max(qubits_list) + 1)
+    if not via_client:    
         qibo.set_backend(backend=device)
     # on QPU
-    if via_client:
-        total_qubits = 20
+    # if via_client:
+    #     total_qubits = 20
 
     result = QFT(qubits_list, device, nshots, via_client, client)    
 
-    success_keys = ["0" * total_qubits, "1" * total_qubits ]
+    n_qubits = len(qubits_list)
+
+    success_keys = ["0" * n_qubits, "1" * n_qubits ]
     total_success = sum(result.frequencies().get(k, 0) for k in success_keys)
     success_rate = total_success / nshots if nshots else 0.0
 
-    all_bitstrings = [format(i, f"0{total_qubits}b") for i in range(2**total_qubits)]
+    all_bitstrings = [format(i, f"0{n_qubits}b") for i in range(2**n_qubits)]
     freq_dict = {bitstr: result.frequencies().get(bitstr, 0) for bitstr in all_bitstrings}
 
     results = {
@@ -88,8 +108,6 @@ def main(qubits_list, device, nshots, via_client):
 
     output_dir = f"../../data/QFT/{device}"
     os.makedirs(output_dir, exist_ok=True)
-    # output_path = os.path.join(output_dir,
-    # f"QFT_on_{qubits_list}_{nshots}shots_device_{device}.json")
     output_path = os.path.join(output_dir, f"results.json")
 
     with open(output_path, "w") as f:
