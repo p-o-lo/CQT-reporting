@@ -428,6 +428,31 @@ def plot_grover(raw_data, output_path="build/"):
     return out_file
 
 
+def plot_QFT(raw_data, output_path="build/"):
+    """
+    Plot QFT algorithm results as a histogram of measured bitstrings.
+    """
+    # Load data from JSON file
+    with open(raw_data, "r") as f:
+        data = json.load(f)
+
+    # Extract frequencies for the first (and only) key in 'frequencies'
+    frequencies = data["plotparameters"]["frequencies"]
+
+    plt.figure()
+    plt.bar(frequencies.keys(), frequencies.values(), color="skyblue", edgecolor="black")
+    plt.xlabel("Bitstring")
+    plt.ylabel("Counts")
+    plt.title("QFT's Algorithm Measurement Histogram")
+    plt.tight_layout()
+
+    os.makedirs(output_path, exist_ok=True)
+    out_file = os.path.join(output_path, "QFT_results.pdf")
+    plt.savefig(out_file)
+    plt.close()
+    return out_file
+
+
 def plot_ghz(raw_data, output_path="build/"):
     """
     Plot GHZ results as a histogram of measured bitstrings.
