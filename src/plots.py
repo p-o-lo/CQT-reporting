@@ -428,7 +428,7 @@ def plot_grover(raw_data, output_path="build/"):
     return out_file
 
 
-def plot_QFT(raw_data, output_path="build/"):
+def plot_QFT(raw_data, expname, output_path="build/"):
     """
     Plot QFT algorithm results as a histogram of measured bitstrings.
     """
@@ -447,7 +447,7 @@ def plot_QFT(raw_data, output_path="build/"):
     plt.tight_layout()
 
     os.makedirs(output_path, exist_ok=True)
-    out_file = os.path.join(output_path, "QFT_results.pdf")
+    out_file = os.path.join(output_path, f"{expname}_results.pdf")
     plt.savefig(out_file)
     plt.close()
     return out_file
