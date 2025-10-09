@@ -642,7 +642,8 @@ def plot_qft(raw_data, expname, output_path="build/"):
     bitstrings = [str(bs) for bs in qubits_lists]
 
     plt.figure()
-    plt.plot(bitstrings, fidelities, color="skyblue", linestyle="None", marker="x")
+    plt.grid(True)
+    plt.plot(bitstrings, fidelities, color="r", linestyle="None", marker="x")
     # plt.plot(bitstrings, np.ones_like(fidelities), color="r")
     plt.xticks(rotation=90)
     plt.xlabel("Qubits Set")
@@ -656,6 +657,45 @@ def plot_qft(raw_data, expname, output_path="build/"):
     plt.close()
     return out_file
 
+def plot_qft_hist(raw_data, expname, output_path="build/"):
+    """
+    Plot the results of a Quantum Fourier Transform (QFT) experiment as a histogram.
+
+    Args:
+        raw_data (str): Path to the JSON file containing the QFT results.
+        output_path (str): Directory to save the output plot.
+
+    Returns:
+        str: Path to the saved plot file.
+    """
+    
+    # Data load
+    with open(raw_data, "r") as f:
+        data = json.load(f)
+
+    index_set_qubits = int(0)
+    dataplot = list(data["frequencies"].values())[index_set_qubits]
+    qubits_list = data["plotparameters"]["qubits_lists"][index_set_qubits]
+    n_qubits = len(qubits_list)
+    all_bitstrings = [format(i, f"0{n_qubits}b") for i in range(2**n_qubits)]
+
+    os.makedirs(output_path, exist_ok=True)
+
+    # Plot
+    plt.figure()
+    plt.bar(all_bitstrings, dataplot, color="skyblue", edgecolor="black")
+    plt.title(f"3 Qubits QFT with swap on qubits {qubits_list}")
+    plt.xlabel("Bitstring")
+    plt.xticks(rotation=45, ha="right")
+    plt.ylabel("Counts")
+    plt.tight_layout()
+
+    os.makedirs(output_path, exist_ok=True)
+    out_file = os.path.join(output_path, f"{expname}_results.pdf")
+    plt.savefig(out_file)
+    plt.close()
+
+    return out_file
 
 def plot_ghz(raw_data, experiment_name, output_path="build/"):
     """

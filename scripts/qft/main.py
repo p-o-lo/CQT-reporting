@@ -11,7 +11,7 @@ sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
 import config  # scripts/config.py
 
 
-def QFT(qubits_list, nshots):
+def QFT(qubits_list):
     n_qubits = len(qubits_list)
     total_qubits = int(np.max(qubits_list) + 1)
 
@@ -56,7 +56,7 @@ def main(device, nshots):
     for qubits_list in qubits_lists:
         print(f"Trying qubits: {qubits_list}")
 
-        circuit = QFT(qubits_list, nshots)
+        circuit = QFT(qubits_list)
 
         start = time.perf_counter()
         result = circuit(nshots=nshots)
