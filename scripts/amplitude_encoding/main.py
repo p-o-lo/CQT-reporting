@@ -70,7 +70,7 @@ def F_k(circuit, k, qubits_list, theta):
         return circuit
 
 
-def amplitude_enc(vector, qubits_list, nshosts):
+def amplitude_enc(vector, edges, nshosts):
     """
     Args: - a vector of numerical values (real for the moments)
           - list of qubits where to apply the amp_encoding
@@ -78,6 +78,8 @@ def amplitude_enc(vector, qubits_list, nshosts):
     Return: circuit.result. Amplitude must be the normalized elements in
             input vector
     """
+    
+    qubits_list = sorted(set(sum(edges, [])))
 
     n = len(qubits_list)  # num qubits used
 
@@ -132,7 +134,7 @@ def amplitude_enc(vector, qubits_list, nshosts):
     return result, circuit.depth, len(circuit.queue), end - start
 
 
-def main(vector, qubits_list, device, nshots):
+def main(vector, edges, device, nshots):
     # Remove all qibo_client usage and via_client logic
     # Set backend as in template/main.py, GHZ/main.py, mermin/main.py
     if device == "numpy":
@@ -150,11 +152,13 @@ def main(vector, qubits_list, device, nshots):
     results["success_rate"] = {}
     results["plotparameters"] = {}
     results["plotparameters"]["frequencies"] = {}
-    data["qubits_list"] = qubits_list
+    data["qubits_list"] = edges
     data["nshots"] = nshots
     data["device"] = device
 
-    result, depth, num_gates, duration = amplitude_enc(vector, qubits_list, nshots)
+    result, depth, num_gates, duration = amplitude_enc(vector, edges, nshots)
+
+    qubits_list = sorted(set(sum(edges, [])))
 
     n_qubits = len(qubits_list)
     success_keys = ["0" * n_qubits, "1" * n_qubits]
@@ -173,7 +177,7 @@ def main(vector, qubits_list, device, nshots):
         "gates_count": num_gates,
         "runtime": f"{duration:.2f} seconds.",
         "success_rate": success_rate,
-        "qubits_used": qubits_list,
+        "qubits_used": edges,
         "plotparameters": {"frequencies": freq_dict},
     }
 
@@ -187,6 +191,7 @@ def main(vector, qubits_list, device, nshots):
 
 
 import argparse
+import ast
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -198,11 +203,10 @@ if __name__ == "__main__":
         help="Input of numerical vector to encode into the amplitude",
     )
     parser.add_argument(
-        "--qubits_list",
-        default=[0, 1, 4],
-        type=int,
-        nargs="+",
-        help="List of qubits exploited in the device",
+        "--edges",
+        default="[[9,8],[8,13]]",
+        type=list,
+        help="Target edges list as string representation",
     )
     parser.add_argument(
         "--device",
@@ -216,5 +220,13 @@ if __name__ == "__main__":
         type=int,
         help="Number of shots for each circuit",
     )
-    args = vars(parser.parse_args())
-    main(args["input_vector"], args["qubits_list"], args["device"], args["nshots"])
+    args = parser.parse_args()
+    # Parse the qubit list string into actual list of integers
+    try:
+        edges = ast.literal_eval(args.edges)
+        # Ensure all elements are integers
+        edges = [[int(q) for q in edge] for edge in edges]
+    except (ValueError, SyntaxError, TypeError):
+        print(f"Error: Invalid qubit list format: {args.edges}")
+        sys.exit(1)
+    main(args.input_vector, args.edges, args.device, args.nshots)
