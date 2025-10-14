@@ -644,7 +644,7 @@ def plot_qft(raw_data, expname, output_path="build/"):
     plt.figure()
     plt.plot(bitstrings, fidelities, color="skyblue", linestyle="None", marker="x")
     # plt.plot(bitstrings, np.ones_like(fidelities), color="r")
-    plt.xticks(rotation=90)
+    plt.xticks(rotation=45)
     plt.xlabel("Qubits Set")
     plt.ylabel("Fidelity")
     plt.title("QFT's Fidelity on Different set of qubits")
@@ -656,6 +656,48 @@ def plot_qft(raw_data, expname, output_path="build/"):
     plt.close()
     return out_file
 
+def plot_qft_swap(raw_data, expname, output_path="build/"):
+    """
+    Plot the results of a Quantum Fourier Transform (QFT) experiment as a histogram.
+
+    Args:
+        raw_data (str): Path to the JSON file containing the QFT results.
+        output_path (str): Directory to save the output plot.
+
+    Returns:
+        str: Path to the saved plot file.
+    """
+    
+    # Data load
+    with open(raw_data, "r") as f:
+        data = json.load(f)
+    
+    edges = data["edges"]
+    dataplot = data["frequencies"].values()
+    n_shots = data["nshots"]
+    qubits_set = set(sum(edges, []))
+    n_qubits = len(qubits_set)                         # number of qubits 
+    all_bitstrings = [format(i, f"0{n_qubits}b") for i in range(2**n_qubits)]
+    
+    os.makedirs(output_path, exist_ok=True)
+
+    # Plot
+    plt.bar(all_bitstrings, dataplot)
+    plt.title(f"QFT Manually Transpiled on {data["device"]} with {data["nshots"]} shots. \n Execution on edges {edges}")
+    plt.xlabel("States")
+    plt.xticks(rotation=45)
+    plt.ylabel("Counts")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # Save plot
+    os.makedirs(output_path, exist_ok=True)
+    out_file = os.path.join(output_path, f"{expname}_results.pdf")
+    plt.savefig(out_file)
+    plt.close()
+    
+    return out_file
 
 def plot_ghz(raw_data, experiment_name, output_path="build/"):
     """
