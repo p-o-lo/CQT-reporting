@@ -11,7 +11,7 @@ sys.path.insert(0, str(_P(__file__).resolve().parents[1]))
 import config  # scripts/config.py
 
 
-def QFT(edges):
+def QFT(qubits_list):
     '''
     Quantum Fourier Transform circuit from scratch (ONLY THREE QUBITS)
     
@@ -22,7 +22,7 @@ def QFT(edges):
     Returns: qibo circuit
     '''
     
-    qubits_set = set(sum(edges, []))
+    qubits_set = set(sum(qubits_list, []))
     total_qubits = int(max(qubits_set) + 1)     # number of total qubits of the circuit
 
     circuit = qibo.Circuit(total_qubits)                # Circuit initialization
@@ -33,15 +33,15 @@ def QFT(edges):
     
     # QFT from scratch for three qubits with swap for 
     # connection q0--q1--q2
-    circuit.add(qibo.gates.H(edges[0][0]))
+    circuit.add(qibo.gates.H(qubits_list[0][0]))
     theta1 = np.pi / 2
-    circuit.add(qibo.gates.CU1(edges[0][1], edges[0][0], theta1))
-    circuit.add(qibo.gates.SWAP(edges[0][1], edges[1][1]))
+    circuit.add(qibo.gates.CU1(qubits_list[0][1], qubits_list[0][0], theta1))
+    circuit.add(qibo.gates.SWAP(qubits_list[0][1], qubits_list[1][1]))
     theta2 = np.pi / 4
-    circuit.add(qibo.gates.CU1(edges[0][1], edges[0][0], theta2))
-    circuit.add(qibo.gates.H(edges[1][1]))
-    circuit.add(qibo.gates.CU1(edges[1][1], edges[1][0], theta1))
-    circuit.add(qibo.gates.H(edges[0][1]))
+    circuit.add(qibo.gates.CU1(qubits_list[0][1], qubits_list[0][0], theta2))
+    circuit.add(qibo.gates.H(qubits_list[1][1]))
+    circuit.add(qibo.gates.CU1(qubits_list[1][1], qubits_list[1][0], theta1))
+    circuit.add(qibo.gates.H(qubits_list[0][1]))
     
     # Add measurement
     for q in qubits_set:
@@ -50,7 +50,7 @@ def QFT(edges):
     return circuit
 
 
-def main(edges, device, nshots):
+def main(qubits_list, device, nshots):
     # Remove all qibo_client usage and via_client logic
     # Set backend as in template/main.py, GHZ/main.py, mermin/main.py
     if device == "numpy":
@@ -60,15 +60,15 @@ def main(edges, device, nshots):
 
     # Here the list of the best three qubits
     
-    qubits_set = set(sum(edges, []))
+    qubits_set = set(sum(qubits_list, []))
     num_qubits = len(qubits_set)                         # number of qubits 
 
     frequencies = dict()
     all_bitstrings = [format(i, f"0{num_qubits}b") for i in range(2**num_qubits)]
 
-    print(f"Trying edges: {edges}")
+    print(f"Trying edges: {qubits_list}")
 
-    circuit = QFT(edges)
+    circuit = QFT(qubits_list)
 
     start = time.perf_counter()
     result = circuit(nshots=nshots)
@@ -88,7 +88,7 @@ def main(edges, device, nshots):
     results["gates_count"] = {}
     results["duration"] = {}
     results["frequencies"] = {}
-    results["edges"] = {}
+    results["qubits_list"] = {}
     data["nshots"] = nshots
     data["device"] = device
 
@@ -98,7 +98,7 @@ def main(edges, device, nshots):
         "gates_counts": num_gates,
         "duration": f"{(end-start):.3f} seconds.",
         "frequencies": frequencies,
-        "edges": edges,
+        "qubits_list": qubits_list,
     }
     
     out_dir = config.output_dir_for(__file__, device)
@@ -127,7 +127,7 @@ if __name__ == "__main__":
         help="Number of shots for each circuit",
     )
     parser.add_argument(
-        "--edges",
+        "--qubits_list",
         default="[[9,8],[8,13]]",
         type=list,
         help="Target edges list as string representation",
@@ -135,10 +135,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # Parse the qubit list string into actual list of integers
     try:
-        edges = ast.literal_eval(args.edges)
+        qubits_list = ast.literal_eval(args.qubits_list)
         # Ensure all elements are integers
-        edges = [[int(q) for q in edge] for edge in edges]
+        qubits_list = [[int(q) for q in edge] for edge in qubits_list]
     except (ValueError, SyntaxError, TypeError):
-        print(f"Error: Invalid qubit list format: {args.edges}")
+        print(f"Error: Invalid qubit list format: {args.qubits_list}")
         sys.exit(1)
-    main(args.edges, args.device, args.nshots)
+    main(args.qubits_list, args.device, args.nshots)

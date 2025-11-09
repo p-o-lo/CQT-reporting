@@ -672,10 +672,10 @@ def plot_qft_swap(raw_data, expname, output_path="build/"):
     with open(raw_data, "r") as f:
         data = json.load(f)
     
-    edges = data["edges"]
+    qubits_list = data["qubits_list"]
     dataplot = data["frequencies"].values()
     n_shots = data["nshots"]
-    qubits_set = set(sum(edges, []))
+    qubits_set = set(sum(qubits_list, []))
     n_qubits = len(qubits_set)                         # number of qubits 
     all_bitstrings = [format(i, f"0{n_qubits}b") for i in range(2**n_qubits)]
     
@@ -683,7 +683,7 @@ def plot_qft_swap(raw_data, expname, output_path="build/"):
 
     # Plot
     plt.bar(all_bitstrings, dataplot)
-    plt.title(f"QFT Manually Transpiled on {data["device"]} with {data["nshots"]} shots. \n Execution on edges {edges}")
+    plt.title(f"QFT Manually Transpiled on {data["device"]} with {data["nshots"]} shots. \n Execution on edges {qubits_list}")
     plt.xlabel("States")
     plt.xticks(rotation=45)
     plt.ylabel("Counts")
